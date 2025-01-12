@@ -42,7 +42,7 @@
                   IsReadOnly="True"
                   CanUserReorderColumns="True"
                   CanUserSortColumns="True"
-                  ItemsSource="{Binding Items.DefaultView}">
+                  ItemsSource="{Binding Items}">
             <DataGrid.Resources>
                 <!-- Override MahApps Header Style to Prevent Capitalization -->
                 <Style TargetType="DataGridColumnHeader">

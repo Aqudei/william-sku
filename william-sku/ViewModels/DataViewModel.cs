@@ -7,17 +7,17 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using william_sku.Data;
 
 namespace william_sku.ViewModels
 {
-    internal class DataViewModel
+    internal class DataViewModel : BindableBase
     {
 
         private DelegateCommand _importCommand;
         private readonly Database _database;
-        public DataTable Items { get; set; } = new DataTable();
-
+        public DataTable Items { get => _items; set => SetProperty(ref _items, value); }
 
 
         public DelegateCommand ImportCommand
@@ -26,6 +26,7 @@ namespace william_sku.ViewModels
         }
 
         private DelegateCommand _bulkDeleteCommand;
+        private DataTable _items = new DataTable();
 
         public DelegateCommand BulkDeleteCommand
         {
@@ -80,21 +81,15 @@ namespace william_sku.ViewModels
             Task.Run(LoadItems);
         }
 
-        private void LoadItems()
+        private async Task LoadItems()
         {
-            Items.Rows.Clear();
-            Items.Columns.Clear();
-
+            Items.Clear();
             var dt = _database.ListItems();
-            foreach (DataColumn col in dt.Columns)
-            {
-                Items.Columns.Add(col.ColumnName, col.DataType);
-            }
 
-            foreach (DataRow row in dt.Rows)
+            await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                Items.ImportRow(row);
-            }
+                Items = dt;
+            });
         }
     }
 }
