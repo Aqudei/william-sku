@@ -30,6 +30,9 @@ namespace william_sku
             regionManager.RegisterViewWithRegion("MainRegion", typeof(Views.Data));
 
             containerRegistry.RegisterSingleton<Data.Database>();
+            containerRegistry.RegisterDialogWindow<MetroDialog>();
+            containerRegistry.RegisterDialog<Views.Settings>();
+            containerRegistry.RegisterDialog<Views.Search>();
         }
     }
 

@@ -14,19 +14,37 @@ namespace william_sku.ViewModels
 {
     internal class DataViewModel : BindableBase
     {
-
+        private DataTable _items = new DataTable();
         private DelegateCommand _importCommand;
         private readonly Database _database;
+        private readonly IDialogService _dialogService;
+
         public DataTable Items { get => _items; set => SetProperty(ref _items, value); }
 
+
+        public DelegateCommand SearchCommand => _searchCommand ??= new DelegateCommand(OnSearch);
+
+        private void OnSearch()
+        {
+            _dialogService.ShowDialog("Search");
+        }
 
         public DelegateCommand ImportCommand
         {
             get { return _importCommand ??= new DelegateCommand(OnImportFile); }
         }
 
+
+        public DelegateCommand SettingsCommand { get => _settingsCommand ??= new DelegateCommand(OnSettings); }
+
+        private void OnSettings()
+        {
+            _dialogService.ShowDialog("Settings");
+        }
+
         private DelegateCommand _bulkDeleteCommand;
-        private DataTable _items = new DataTable();
+        private DelegateCommand _settingsCommand;
+        private DelegateCommand _searchCommand;
 
         public DelegateCommand BulkDeleteCommand
         {
@@ -74,12 +92,7 @@ namespace william_sku.ViewModels
             }
         }
 
-        public DataViewModel(Database database)
-        {
-            _database = database;
 
-            Task.Run(LoadItems);
-        }
 
         private async Task LoadItems()
         {
@@ -90,6 +103,13 @@ namespace william_sku.ViewModels
             {
                 Items = dt;
             });
+        }
+
+        public DataViewModel(Database database, IDialogService dialogService)
+        {
+            _database = database;
+            _dialogService = dialogService;
+            Task.Run(LoadItems);
         }
     }
 }

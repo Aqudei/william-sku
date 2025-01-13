@@ -29,9 +29,15 @@
                         Margin="2"
                         Command="{Binding ExportCommand}" 
                         Width="120"/>
+
+                <Button Content="Search"
+                        Margin="2"
+                        Command="{Binding SearchCommand}" 
+                        Width="120"/>
             </StackPanel>
 
             <Button Content="Settings" 
+                    Command="{Binding SettingsCommand}"
                     Margin="2" 
                     Width="120"
                     Grid.Column="2"/>

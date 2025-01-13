@@ -147,7 +147,7 @@ namespace william_sku.Data
             connection.Close();
         }
 
-        private IEnumerable<string> ListHeaders()
+        public IEnumerable<string> ListHeaders()
         {
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
