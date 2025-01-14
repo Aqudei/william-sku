@@ -5,12 +5,29 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:william_sku.Views"
              mc:Ignorable="d" 
+             Width="400"
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
         <StackPanel>
-            <ComboBox Margin="2" ItemsSource="{Binding Fields}">Field</ComboBox>
+            <ComboBox Margin="2" 
+                      ItemsSource="{Binding Fields}"
+                      SelectedItem="{Binding SelectedField, Mode=OneWayToSource}"/>
             <TextBox Margin="2" Text="{Binding SearchText}"/>
         </StackPanel>
-        
+
+
+        <StackPanel Orientation="Horizontal" Grid.Row="1">
+            <Button Content="Close" 
+                    Margin="2"
+                    Command="{Binding CloseCommand}"/>
+            <Button Content="Apply Search"
+                    Margin="2"
+                    Command="{Binding ApplySearchCommand}"/>
+        </StackPanel>
     </Grid>
 </UserControl>

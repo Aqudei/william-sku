@@ -1,21 +1,71 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using william_sku.Data;
 
 namespace william_sku.ViewModels
 {
     internal class SearchViewModel : BindableBase, IDialogAware
     {
-        public DialogCloseListener RequestClose { get; }
+        public const string NoneField = "-None-";
+        private readonly Database _database;
+        private DelegateCommand _closeCommand;
 
+        public DialogCloseListener RequestClose { get; }
+        public ObservableCollection<string> Fields { get; set; } = new();
+        public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
+        public string SelectedField { get; set; }
         public bool CanCloseDialog() => true;
 
         public void OnDialogClosed()
         { }
 
         public void OnDialogOpened(IDialogParameters parameters)
-        { }
+        {
+            Fields.Clear();
+            Fields.AddRange(_database.ListHeaders());
+
+            AddExtraField("MCNumber", 0);
+            AddExtraField(NoneField, 0);
+        }
+
+        private void AddExtraField(string fieldName, int index)
+        {
+            if (!Fields.Contains(fieldName))
+            {
+                if (index >= 0)
+                    Fields.Insert(index, fieldName);
+                else
+                    Fields.Add(fieldName);
+            }
+        }
+
+        public SearchViewModel(Database database)
+        {
+            _database = database;
+        }
+
+        public DelegateCommand CloseCommand { get => _closeCommand ??= new DelegateCommand(OnClose); }
+
+        private void OnClose()
+        {
+            RequestClose.Invoke(ButtonResult.Cancel);
+        }
+
+        private DelegateCommand _applySearchCommand;
+        private string _searchText;
+
+        public DelegateCommand ApplySearchCommand
+        {
+            get { return _applySearchCommand ??= new DelegateCommand(OnApplySearch); }
+        }
+
+        private void OnApplySearch()
+        {
+            RequestClose.Invoke(new DialogParameters { { "Data", this } }, ButtonResult.OK);
+        }
     }
 }

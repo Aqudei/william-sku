@@ -26,7 +26,22 @@ namespace william_sku.ViewModels
 
         private void OnSearch()
         {
-            _dialogService.ShowDialog("Search");
+            _dialogService.ShowDialog("Search", result =>
+            {
+                if (result.Result == ButtonResult.OK)
+                {
+                    var data = result.Parameters["Data"] as SearchViewModel;
+                    if (data != null)
+                    {
+                        if (data.SelectedField == SearchViewModel.NoneField)
+                        {
+                            Items.DefaultView.RowFilter = $"1=1";
+                            return;
+                        }
+                        Items.DefaultView.RowFilter = $"{data.SelectedField} = '{data.SearchText}'";
+                    }
+                }
+            });
         }
 
         public DelegateCommand ImportCommand
