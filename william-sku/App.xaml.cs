@@ -1,4 +1,5 @@
-﻿using OfficeOpenXml;
+﻿using MahApps.Metro.Controls.Dialogs;
+using OfficeOpenXml;
 using System.Configuration;
 using System.Data;
 using System.Windows;
@@ -33,6 +34,7 @@ namespace william_sku
             containerRegistry.RegisterDialogWindow<MetroDialog>();
             containerRegistry.RegisterDialog<Views.Settings>();
             containerRegistry.RegisterDialog<Views.Search>();
+            containerRegistry.RegisterInstance(DialogCoordinator.Instance);
         }
     }
 

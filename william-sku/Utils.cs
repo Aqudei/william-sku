@@ -49,13 +49,15 @@ namespace william_sku
             {
                 var columnName = hasHeader ? worksheet.Cells[1, col].Text : $"Column{col}";
                 var processedColumnName = columnName;
-                if (!columnName.StartsWith("Column"))
-                {
-                    processedColumnName = colMapping[columnName].Name;
-                }
+
+                if(!colMapping.ContainsKey(processedColumnName))
+                    continue;
+
+                var headerColumn = colMapping[columnName];
+                processedColumnName = headerColumn.Name;
 
                 var dataColumn = dataTable.Columns.Add(processedColumnName);
-                dataColumn.Caption = colMapping[columnName].Display;
+                dataColumn.Caption = headerColumn.Display;
             }
 
             // Add rows to DataTable

@@ -1,4 +1,5 @@
-﻿using Microsoft.Win32;
+﻿using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -18,6 +19,7 @@ namespace william_sku.ViewModels
         private DelegateCommand _importCommand;
         private readonly Database _database;
         private readonly IDialogService _dialogService;
+        private readonly IDialogCoordinator _dialogCoordinator;
 
         public DataTable Items { get => _items; set => SetProperty(ref _items, value); }
 
@@ -112,21 +114,38 @@ namespace william_sku.ViewModels
 
 
 
-        private async Task LoadItems()
+        private async void LoadItems()
         {
-            Items.Clear();
-            var dt = _database.ListItems();
+            var progess = await _dialogCoordinator.ShowProgressAsync(this, "Please wait.", "Loading items...");
+            progess.SetIndeterminate();
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            try
             {
-                Items = dt;
-            });
+                Items.Clear();
+                var dt = _database.ListItems();
+
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    Items = dt;
+                });
+
+
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+            finally
+            {
+                await progess.CloseAsync();
+            }
         }
 
-        public DataViewModel(Database database, IDialogService dialogService)
+        public DataViewModel(Database database, IDialogService dialogService, IDialogCoordinator dialogCoordinator)
         {
             _database = database;
             _dialogService = dialogService;
+            _dialogCoordinator = dialogCoordinator;
             Task.Run(LoadItems);
         }
     }
