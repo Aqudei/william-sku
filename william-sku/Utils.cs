@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using william_sku.Models;
 
 namespace william_sku
 {
@@ -28,8 +29,10 @@ namespace william_sku
             return dbPath;
         }
 
-        public static DataTable WorksheetToDataTable(string filename, bool hasHeader)
+        public static DataTable WorksheetToDataTable(string filename, bool hasHeader, IEnumerable<Header> headers)
         {
+            var colMapping = headers.ToDictionary(h => h.Display);
+
             var fileInfo = new FileInfo(filename);
             using var package = new ExcelPackage(fileInfo);
             using var worksheet = package.Workbook.Worksheets.First();
@@ -45,9 +48,12 @@ namespace william_sku
             for (int col = 1; col <= columns; col++)
             {
                 var columnName = hasHeader ? worksheet.Cells[1, col].Text : $"Column{col}";
+                var processedColumnName = columnName;
+                if (!columnName.StartsWith("Column"))
+                {
+                    processedColumnName = colMapping[columnName].Name;
+                }
 
-                var processedColumnName = columnName.Replace(" ", "").Trim();
-                processedColumnName = processedColumnName == "MC#" ? "MCNumber" : processedColumnName;
                 var dataColumn = dataTable.Columns.Add(processedColumnName);
                 dataColumn.Caption = columnName;
             }

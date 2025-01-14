@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
+using william_sku.Models;
 using static OfficeOpenXml.ExcelErrorValue;
 
 namespace william_sku.Data
@@ -78,7 +79,10 @@ namespace william_sku.Data
             connection.Open();
             string createTableQuery = @"
                 CREATE TABLE IF NOT EXISTS Headers (
-                    Name TEXT PRIMARY KEY                
+                    Name TEXT PRIMARY KEY,              
+                    Display TEXT,              
+                    Required INTEGER NOT NULL CHECK (Required IN (0, 1)),
+                    Range INTEGER NOT NULL CHECK (Range IN (0, 1))            
                 );
             ";
 
@@ -87,31 +91,129 @@ namespace william_sku.Data
                 command.ExecuteNonQuery();
             }
 
+            var headersList = new List<Header> {
+                new Header
+                {
+                    Name = "MCNumber",
+                    Display = "MC#",
+                    Range = true,
+                    Required = true,
+                },
+                new Header
+                {
+                    Name = "Status",
+                    Display = "Status",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "EntityType",
+                    Display = "Entity Type",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "OperatingStatus",
+                    Display = "Operating Status",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "OutOfServiceDate",
+                    Display = "Out of Service Date",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "LegalName",
+                    Display = "Legal Name",
+                    Range = false,
+                    Required = true,
+                },
+                new Header
+                {
+                    Name = "DBAName",
+                    Display = "DBA Name",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "PhysicalAddress",
+                    Display = "Physical Address",
+                    Range = false,
+                    Required = true,
+                },
+                new Header
+                {
+                    Name = "Phone",
+                    Display = "Phone",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "Email",
+                    Display = "email",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "MailingAddress",
+                    Display = "Mailing Address",
+                    Range = false,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "USDOTNumber",
+                    Display = "US DOT Number",
+                    Range = true,
+                    Required = true,
+                },
+                new Header
+                {
+                    Name = "PowerUnits",
+                    Display = "Power Units",
+                    Range = true,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "Drivers",
+                    Display = "Drivers",
+                    Range = true,
+                    Required = false,
+                },
+                new Header
+                {
+                    Name = "AddedDate",
+                    Display = "added date",
+                    Range = true,
+                    Required = true,
+                },
+                new Header
+                {
+                    Name = "LastUpdate",
+                    Display = "last update",
+                    Range = true,
+                    Required = true,
+                },
+            };
 
-            string[] headers =
-            [
-                "Status",
-                "EntityType",
-                "OperatingStatus",
-                "OutOfServiceDate",
-                "LegalName",
-                "DBAName",
-                "PhysicalAddress",
-                "Phone",
-                "Email",
-                "MailingAddress",
-                "USDOTNumber",
-                "PowerUnits",
-                "Drivers",
-                "AddedDate",
-                "LastUpdate"
-            ];
-
-            foreach (string header in headers)
+            foreach (var header in headersList)
             {
-                var commandText = "INSERT INTO Headers (Name) VALUES (@Name)";
+                var commandText = "INSERT INTO Headers (Name,Display,Range,Required) VALUES (@Name,@Display,@Range,@Required)";
                 var command = new SqliteCommand(commandText, connection);
-                command.Parameters.AddWithValue("@Name", header);
+                command.Parameters.AddWithValue("@Name", header.Name);
+                command.Parameters.AddWithValue("@Display", header.Display);
+                command.Parameters.AddWithValue("@Range", header.Range);
+                command.Parameters.AddWithValue("@Required", header.Required);
                 command.ExecuteNonQuery();
             }
 
@@ -121,13 +223,13 @@ namespace william_sku.Data
         internal void UpdateOrCreate(object mcNum, DataRow row)
         {
 
-            var headers = ListHeaders();
+            var headers = ListHeaders().Where(h => h.Name != "MCNumber").ToArray();
 
             string insertOrReplaceQuery = (@$" 
                 INSERT OR REPLACE INTO MCRecords (
-                    MCNumber,{string.Join(',', headers)}
+                    MCNumber,{string.Join(',', headers.Select(h=>h.Name))}
                 ) VALUES (
-                   @MCNumber,{string.Join(',', headers.Select(h => "@" + h))}
+                   @MCNumber,{string.Join(',', headers.Select(h => "@" + h.Name))}
                 );
             ");
             Debug.WriteLine(insertOrReplaceQuery);
@@ -139,25 +241,31 @@ namespace william_sku.Data
 
             foreach (var header in headers)
             {
-                var value = row[header];
-                command.Parameters.AddWithValue($"@{header}", value);
+                var value = row[header.Name];
+                command.Parameters.AddWithValue($"@{header.Name}", value);
             }
             var affected = command.ExecuteNonQuery();
             Debug.WriteLine($"Affected Rows: {affected}");
             connection.Close();
         }
 
-        public IEnumerable<string> ListHeaders()
+        public IEnumerable<Header> ListHeaders()
         {
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
-            var commandText = "SELECT Name FROM Headers";
+            var commandText = "SELECT * FROM Headers";
             using var command = new SqliteCommand(commandText, connection);
             var reader = command.ExecuteReader();
 
             while (reader.Read())
             {
-                yield return reader.GetString("Name");
+                yield return new Header
+                {
+                    Name = reader.GetString("Name"),
+                    Display = reader.GetString("Display"),
+                    Range = reader.GetBoolean("Range"),
+                    Required = reader.GetBoolean("Required"),
+                };
             }
 
             connection.Close();

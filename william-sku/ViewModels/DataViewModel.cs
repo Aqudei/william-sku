@@ -68,11 +68,13 @@ namespace william_sku.ViewModels
 
         private void OnBulkDelete()
         {
+            var headers = _database.ListHeaders().ToArray();
             var dialog = new OpenFileDialog();
             var result = dialog.ShowDialog();
             if (result.HasValue && result.Value)
             {
-                var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true);
+                var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
+
                 if (dataTable != null && dataTable.Rows.Count > 0)
                 {
                     foreach (DataRow row in dataTable.Rows)
@@ -89,11 +91,12 @@ namespace william_sku.ViewModels
 
         private void OnImportFile()
         {
+            var headers = _database.ListHeaders().ToArray();
             var dialog = new OpenFileDialog();
             var result = dialog.ShowDialog();
             if (result.HasValue && result.Value)
             {
-                var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true);
+                var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
                 if (dataTable != null && dataTable.Rows.Count > 0)
                 {
                     foreach (DataRow row in dataTable.Rows)

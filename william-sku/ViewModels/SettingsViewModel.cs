@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using william_sku.Data;
+using william_sku.Models;
 
 namespace william_sku.ViewModels
 {
@@ -12,7 +13,7 @@ namespace william_sku.ViewModels
     {
         private readonly Database _database;
 
-        public ObservableCollection<string> Headers { get; set; } = new();
+        public ObservableCollection<Header> Headers { get; set; } = new();
         public DialogCloseListener RequestClose { get; }
 
         public bool CanCloseDialog() => true;
@@ -27,8 +28,8 @@ namespace william_sku.ViewModels
 
         private void FetchHeaders()
         {
-            var headers = _database.ListHeaders();
-
+            Headers.Clear();
+            var headers = _database.ListHeaders().ToArray();
             Headers.AddRange(headers);
         }
 

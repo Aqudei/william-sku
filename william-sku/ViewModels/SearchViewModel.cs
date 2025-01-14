@@ -25,10 +25,10 @@ namespace william_sku.ViewModels
 
         public void OnDialogOpened(IDialogParameters parameters)
         {
+            var headers = _database.ListHeaders().ToArray();
             Fields.Clear();
-            Fields.AddRange(_database.ListHeaders());
+            Fields.AddRange(headers.Select(h=>h.Name));
 
-            AddExtraField("MCNumber", 0);
             AddExtraField(NoneField, 0);
         }
 
