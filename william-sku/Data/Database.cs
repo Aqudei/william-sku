@@ -227,7 +227,7 @@ namespace william_sku.Data
 
             string insertOrReplaceQuery = (@$" 
                 INSERT OR REPLACE INTO MCRecords (
-                    MCNumber,{string.Join(',', headers.Select(h=>h.Name))}
+                    MCNumber,{string.Join(',', headers.Select(h => h.Name))}
                 ) VALUES (
                    @MCNumber,{string.Join(',', headers.Select(h => "@" + h.Name))}
                 );
@@ -273,6 +273,9 @@ namespace william_sku.Data
 
         public DataTable ListItems()
         {
+            var headers = ListHeaders().ToArray();
+            var colMapping = headers.ToDictionary(h => h.Name);
+
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
 
@@ -282,6 +285,7 @@ namespace william_sku.Data
 
             var dataTable = new DataTable();
             dataTable.Load(reader);
+
             connection.Close();
 
             return dataTable;

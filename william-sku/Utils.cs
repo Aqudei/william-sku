@@ -55,7 +55,7 @@ namespace william_sku
                 }
 
                 var dataColumn = dataTable.Columns.Add(processedColumnName);
-                dataColumn.Caption = columnName;
+                dataColumn.Caption = colMapping[columnName].Display;
             }
 
             // Add rows to DataTable
