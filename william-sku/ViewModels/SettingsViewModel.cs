@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -12,6 +13,8 @@ namespace william_sku.ViewModels
 {
     internal class SettingsViewModel : BindableBase, INavigationAware
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         private readonly Database _database;
         private readonly IRegionManager _regionManager;
         private string _newHeaderName;

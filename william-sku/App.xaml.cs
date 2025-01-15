@@ -1,4 +1,5 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
+using NLog;
 using OfficeOpenXml;
 using System.Configuration;
 using System.Data;
@@ -12,6 +13,8 @@ namespace william_sku
     /// </summary>
     public partial class App
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         protected override Window CreateShell()
         {
             return Container.Resolve<Main>();
@@ -23,6 +26,7 @@ namespace william_sku
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
+            Logger.Error("Test Error");
         }
 
         protected override void RegisterTypes(IContainerRegistry containerRegistry)

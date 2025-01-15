@@ -233,7 +233,6 @@ namespace william_sku.Data
                    @MCNumber,{string.Join(',', headers.Select(h => "@" + h.Name))}
                 );
             ");
-            Debug.WriteLine(insertOrReplaceQuery);
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
 
@@ -246,7 +245,6 @@ namespace william_sku.Data
                 command.Parameters.AddWithValue($"@{header.Name}", value);
             }
             var affected = command.ExecuteNonQuery();
-            Debug.WriteLine($"Affected Rows: {affected}");
             connection.Close();
         }
 

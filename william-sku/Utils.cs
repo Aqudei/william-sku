@@ -12,6 +12,38 @@ namespace william_sku
 {
     internal class Utils
     {
+        public static void ExportToExcel(DataTable dataTable, string filePath, Dictionary<string, Header> headers)
+        {
+            // Enable Excel Package License (EPPlus requires this starting from version 5.x)
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+            using (ExcelPackage package = new ExcelPackage())
+            {
+                // Add a worksheet to the package
+                ExcelWorksheet worksheet = package.Workbook.Worksheets.Add(dataTable.TableName);
+
+                // Load the DataTable into the worksheet
+                worksheet.Cells["A1"].LoadFromDataTable(dataTable, true);
+                var columns = worksheet.Dimension.Columns;
+                for (int col = 1; col <= columns; col++)
+                {
+                    var name = worksheet.Cells[1, col].GetValue<string>();
+
+                    if (headers.TryGetValue(name, out var header))
+                    {
+                        worksheet.Cells[1, col].Value = header.Display;
+                    }
+                    else
+                    {
+                        worksheet.Cells[1, col].Value = "Unknown Column";
+                    }
+                }
+
+                // Save the package to the specified file path
+                FileInfo file = new FileInfo(filePath);
+                package.SaveAs(file);
+            }
+        }
         public static string GetAppData()
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -29,7 +61,7 @@ namespace william_sku
             return dbPath;
         }
 
-        public static DataTable WorksheetToDataTable(string filename, bool hasHeader, IEnumerable<Header> headers)
+        public static DataTable WorksheetToDataTable(string filename, IEnumerable<Header> headers)
         {
             var colMapping = headers.ToDictionary(h => h.Display);
 
@@ -37,26 +69,25 @@ namespace william_sku
             using var package = new ExcelPackage(fileInfo);
             using var worksheet = package.Workbook.Worksheets.First();
 
-            var dataTable = new DataTable();
+            var dataTable = new DataTable("MCRecords");
 
             // Get dimensions of the worksheet
             var rows = worksheet.Dimension.Rows;
             var columns = worksheet.Dimension.Columns;
 
             // Add columns to DataTable
-            int startRow = hasHeader ? 2 : 1;
+            int startRow = 2;
             for (int col = 1; col <= columns; col++)
             {
-                var columnName = hasHeader ? worksheet.Cells[1, col].Text : $"Column{col}";
-                var processedColumnName = columnName;
+                var columnName = worksheet.Cells[1, col].Text;
 
-                if(!colMapping.ContainsKey(processedColumnName))
+                if (!colMapping.ContainsKey(columnName))
                     continue;
 
                 var headerColumn = colMapping[columnName];
-                processedColumnName = headerColumn.Name;
+                var databaseColumnName = headerColumn.Name;
 
-                var dataColumn = dataTable.Columns.Add(processedColumnName);
+                var dataColumn = dataTable.Columns.Add(databaseColumnName);
                 dataColumn.Caption = headerColumn.Display;
             }
 
@@ -70,6 +101,7 @@ namespace william_sku
                 }
                 dataTable.Rows.Add(dataRow);
             }
+
 
             return dataTable;
         }

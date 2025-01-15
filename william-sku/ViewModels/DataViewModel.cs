@@ -1,5 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Win32;
+using NLog;
+using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -15,6 +17,8 @@ namespace william_sku.ViewModels
 {
     internal class DataViewModel : BindableBase
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         private DataTable _items = new DataTable();
         private DelegateCommand _importCommand;
         private readonly Database _database;
@@ -47,11 +51,48 @@ namespace william_sku.ViewModels
             });
         }
 
+        private DelegateCommand _exportCommand;
+
+        public DelegateCommand ExportCommand
+        {
+            get { return _exportCommand ??= new DelegateCommand(OnExport); }
+        }
+
+        private async void OnExport()
+        {
+            var headers = _database.ListHeaders().ToDictionary(h => h.Name);
+
+            var dialog = new SaveFileDialog
+            {
+                DefaultExt = "xlsx",
+                Filter = "Excel Files (*.xlsx)|*.xlsx", // File type filter
+            };
+            var result = dialog.ShowDialog();
+            if (result.HasValue && result.Value)
+            {
+                var progress = await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Exporting to {dialog.FileName}...");
+                progress.SetIndeterminate();
+
+                try
+                {
+                    Utils.ExportToExcel(Items, dialog.FileName, headers);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error("Failed to Export to Excel.");
+                    Logger.Error(ex);
+                }
+                finally
+                {
+                    await progress.CloseAsync();
+                }
+            }
+        }
+
         public DelegateCommand ImportCommand
         {
             get { return _importCommand ??= new DelegateCommand(OnImportFile); }
         }
-
 
         public DelegateCommand SettingsCommand { get => _settingsCommand ??= new DelegateCommand(OnSettings); }
 
@@ -87,7 +128,7 @@ namespace william_sku.ViewModels
                     progress.SetIndeterminate();
                     try
                     {
-                        var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
+                        var dataTable = Utils.WorksheetToDataTable(dialog.FileName, headers);
 
                         if (dataTable != null && dataTable.Rows.Count > 0)
                         {
@@ -102,7 +143,7 @@ namespace william_sku.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine(ex);
+                        Logger.Error(ex);
                     }
                     finally
                     {
@@ -128,7 +169,7 @@ namespace william_sku.ViewModels
                     try
                     {
 
-                        var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
+                        var dataTable = Utils.WorksheetToDataTable(dialog.FileName, headers);
                         if (dataTable != null && dataTable.Rows.Count > 0)
                         {
                             foreach (DataRow row in dataTable.Rows)
@@ -142,7 +183,7 @@ namespace william_sku.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine(ex);
+                        Logger.Error(ex);
                     }
                     finally
                     {
@@ -166,7 +207,7 @@ namespace william_sku.ViewModels
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
+                Logger.Error(ex);
             }
         }
 
