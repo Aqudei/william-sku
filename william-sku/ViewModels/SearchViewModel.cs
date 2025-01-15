@@ -10,7 +10,6 @@ namespace william_sku.ViewModels
 {
     internal class SearchViewModel : BindableBase, IDialogAware
     {
-        public const string NoneField = "-None-";
         private readonly Database _database;
         private DelegateCommand _closeCommand;
 
@@ -18,9 +17,9 @@ namespace william_sku.ViewModels
         public ObservableCollection<string> Fields { get; set; } = new();
         public ObservableCollection<string> RangeFields { get; set; } = new();
         public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
-        public string SelectedField { get; set; }
+        public string? SelectedField { get; set; }
 
-        public string SelectedRangeField { get; set; }
+        public string? SelectedRangeField { get; set; }
         public string SearchFrom { get => _searchFrom; set => SetProperty(ref _searchFrom, value); }
         public string SearchTo { get => _searchTo; set => SetProperty(ref _searchTo, value); }
 
@@ -37,13 +36,9 @@ namespace william_sku.ViewModels
             Fields.Clear();
             Fields.AddRange(headers.Select(h => h.Name));
 
-            AddExtraField(Fields, NoneField, 0);
-
 
             RangeFields.Clear();
             RangeFields.AddRange(headers.Where(h => h.Range).Select(h => h.Name));
-            AddExtraField(RangeFields, NoneField, 0);
-
         }
 
         private void AddExtraField(ICollection<string> collection, string fieldName, int index)
@@ -77,6 +72,28 @@ namespace william_sku.ViewModels
         public DelegateCommand ApplySearchCommand
         {
             get { return _applySearchCommand ??= new DelegateCommand(OnApplySearch); }
+        }
+
+
+        private DelegateCommand _resetSearchCommand;
+
+        public DelegateCommand ResetSearchCommand
+        {
+            get { return _resetSearchCommand ??= new DelegateCommand(OnResetSearch); }
+        }
+
+        private void OnResetSearch()
+        {
+            var headers = _database.ListHeaders().ToArray();
+            Fields.Clear();
+            Fields.AddRange(headers.Select(h => h.Name));
+
+
+            RangeFields.Clear();
+            RangeFields.AddRange(headers.Where(h => h.Range).Select(h => h.Name));
+
+            SelectedField = null;
+            SelectedRangeField = null;
         }
 
         private void OnApplySearch()

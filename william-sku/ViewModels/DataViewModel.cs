@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices;
 using System.IO;
 using System.Linq;
@@ -19,6 +20,33 @@ namespace william_sku.ViewModels
 {
     internal class DataViewModel : BindableBase
     {
+        public class MCRecordsComparer : IEqualityComparer<DataRow>
+        {
+            public bool Equals(DataRow? x, DataRow? y)
+            {
+                // Check for nulls
+                if (x == null || y == null)
+                {
+                    return false;
+                }
+
+                // Check if "MCNumber" exists and compare their values
+                return x["MCNumber"]?.Equals(y["MCNumber"]) == true;
+            }
+
+            public int GetHashCode([DisallowNull] DataRow obj)
+            {
+                // Ensure "MCNumber" exists and return its hash code
+                if (obj == null)
+                {
+                    throw new ArgumentNullException(nameof(obj));
+                }
+
+                var value = obj["MCNumber"];
+                return value != null ? value.GetHashCode() : 0;
+            }
+        }
+
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         private DataTable _items = new DataTable();
@@ -41,7 +69,7 @@ namespace william_sku.ViewModels
                 {
                     var data = dialogResult.Parameters["Data"] as SearchViewModel;
                     if (data == null ||
-                        (data.SelectedField == SearchViewModel.NoneField && data.SelectedRangeField == SearchViewModel.NoneField))
+                        (string.IsNullOrEmpty(data.SelectedField) && string.IsNullOrEmpty(data.SelectedRangeField)))
                     {
                         return;
                     }
@@ -51,7 +79,7 @@ namespace william_sku.ViewModels
                     var result2 = new List<DataRow>();
 
                     // Filter by SelectedField if applicable
-                    if (!string.IsNullOrEmpty(data.SelectedField) && data.SelectedField != SearchViewModel.NoneField)
+                    if (!string.IsNullOrEmpty(data.SelectedField))
                     {
                         result1 = items.AsEnumerable()
                                        .Where(row => row.Field<string>(data.SelectedField)?.Contains(data.SearchText) == true)
@@ -59,7 +87,7 @@ namespace william_sku.ViewModels
                     }
 
                     // Filter by SelectedRangeField if applicable
-                    if (!string.IsNullOrEmpty(data.SelectedRangeField) && data.SelectedRangeField != SearchViewModel.NoneField)
+                    if (!string.IsNullOrEmpty(data.SelectedRangeField))
                     {
                         var rgx = new Regex(@"\d+$");
                         if (int.TryParse(rgx.Match(data.SearchFrom).Value, out var searchFrom) &&
@@ -77,15 +105,15 @@ namespace william_sku.ViewModels
 
                     // Combine results based on conditions
                     IEnumerable<DataRow> combinedResults;
+                    var comparer = new MCRecordsComparer();
                     if (!string.IsNullOrEmpty(data.SelectedField) &&
-                        !string.IsNullOrEmpty(data.SelectedRangeField) &&
-                        data.SelectedRangeField != SearchViewModel.NoneField)
+                        !string.IsNullOrEmpty(data.SelectedRangeField))
                     {
-                        combinedResults = result1.Intersect(result2);
+                        combinedResults = result1.Intersect(result2, comparer);
                     }
                     else
                     {
-                        combinedResults = result1.Union(result2);
+                        combinedResults = result1.Union(result2, comparer);
                     }
 
                     // Update Items with combined results

@@ -14,7 +14,7 @@
         </Grid.RowDefinitions>
         
         <StackPanel>
-            <Label>Range Search</Label>
+            <Label>Field Search</Label>
             <ComboBox Margin="2" 
                       ItemsSource="{Binding Fields}"
                       SelectedItem="{Binding SelectedField, Mode=OneWayToSource}"/>
@@ -36,11 +36,16 @@
         <StackPanel Orientation="Horizontal" Grid.Row="1">
             <Button Content="Close" 
                     Margin="2"
+                    Width="100"
                     Command="{Binding CloseCommand}"/>
             <Button Content="Apply Search"
                     Margin="2"
+                    Width="100"
                     Command="{Binding ApplySearchCommand}"/>
-
+            <Button Content="Reset Search"
+                    Width="100"
+                    Margin="2"
+                    Command="{Binding ResetSearchCommand}"/>
             
         </StackPanel>
     </Grid>
