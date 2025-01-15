@@ -25,8 +25,6 @@ namespace william_sku
             base.OnStartup(e);
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-
-            Logger.Error("Test Error");
         }
 
         protected override void RegisterTypes(IContainerRegistry containerRegistry)

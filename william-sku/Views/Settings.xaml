@@ -43,7 +43,7 @@
                         Command="{Binding RemoveSelectedHeadersCommand}"/>
             </StackPanel>
         </Grid>
-        <GroupBox Grid.Column="1" Header="Header Info" Margin="2">
+        <GroupBox Grid.Column="1" Header="New Header" Margin="2">
 
             <StackPanel Orientation="Vertical">
                 <Label Margin="2,2,2,2">Display:</Label>
@@ -53,10 +53,10 @@
                 <TextBox Text="{Binding NewHeaderName}" Margin="2,2,2,2"/>
 
                 <StackPanel Orientation="Horizontal" Margin="2">
-                    <CheckBox IsChecked="{Binding NewHeaderIsRange}">Is Range:</CheckBox>
-                    <CheckBox IsChecked="{Binding NewHeaderIsRequired}">Is Required:</CheckBox>
+                    <CheckBox Margin="2" IsChecked="{Binding NewHeaderIsRange}">Is Range:</CheckBox>
+                    <CheckBox Margin="2" IsChecked="{Binding NewHeaderIsRequired}">Is Required:</CheckBox>
                 </StackPanel>
-                <Button Content="Save New Header" 
+                <Button Content="Save" 
                         Command="{Binding SaveHeaderCommand}"
                         Margin="5"/>
             </StackPanel>

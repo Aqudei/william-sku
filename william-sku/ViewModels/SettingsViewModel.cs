@@ -38,7 +38,7 @@ namespace william_sku.ViewModels
 
         private async void OnRemoveSelectedHeader()
         {
-            var selected = Headers.Where(h => h.IsSelected);
+            var selected = Headers.Where(h => h.IsSelected && !h.Required);
 
             foreach (var header in selected)
             {

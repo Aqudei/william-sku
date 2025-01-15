@@ -270,7 +270,7 @@ namespace william_sku.Data
             connection.Close();
         }
 
-        public DataTable ListItems()
+        public DataTable ListItemsAsDataTable()
         {
             var headers = ListHeaders().ToArray();
             var colMapping = headers.ToDictionary(h => h.Name);

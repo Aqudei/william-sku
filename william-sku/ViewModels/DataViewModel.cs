@@ -6,9 +6,11 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.DirectoryServices;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using william_sku.Data;
@@ -33,19 +35,62 @@ namespace william_sku.ViewModels
 
         private void OnSearch()
         {
-            _dialogService.ShowDialog("Search", result =>
+            _dialogService.ShowDialog("Search", dialogResult =>
             {
-                if (result.Result == ButtonResult.OK)
+                if (dialogResult.Result == ButtonResult.OK)
                 {
-                    var data = result.Parameters["Data"] as SearchViewModel;
+                    var data = dialogResult.Parameters["Data"] as SearchViewModel;
                     if (data != null)
                     {
-                        if (data.SelectedField == SearchViewModel.NoneField)
+                        if (data.SelectedField == SearchViewModel.NoneField && data.SelectedRangeField == SearchViewModel.NoneField)
                         {
-                            Items.DefaultView.RowFilter = $"1=1";
                             return;
                         }
-                        Items.DefaultView.RowFilter = $"{data.SelectedField} LIKE '%{data.SearchText}%'";
+
+                        var items = _database.ListItemsAsDataTable();
+                        var result1 = new List<DataRow>();
+                        var result2 = new List<DataRow>();
+
+                        if (data.SelectedField != SearchViewModel.NoneField)
+                        {
+                            var searchResult = from row in items.AsEnumerable()
+                                               where row.Field<string>(data.SelectedField).Contains(data.SearchText)
+                                               select row;
+
+                            if (searchResult != null && searchResult.Any())
+                            {
+                                result1.AddRange(searchResult);
+                            }
+                        }
+
+                        if (data.SelectedRangeField != SearchViewModel.NoneField)
+                        {
+                            var rgx = new Regex(@"\d+$");
+                            var query1 = from row in items.AsEnumerable()
+                                         select new { Regex = rgx.Match(row.Field<string>(data.SelectedRangeField)).Value, Row = row };
+
+                            var query2 = from item in query1
+                                         let regexValue = item.Regex
+                                         let number = int.TryParse(regexValue, out var result) ? result : (int?)null
+                                         where number.HasValue && number.Value >= int.Parse(data.SearchFrom) && number.Value <= int.Parse(data.SearchTo)
+                                         select item.Row;
+                            if (query2 != null && query2.Any())
+                            {
+                                result2.AddRange(query2);
+                            }
+                        }
+
+                        var result = result1.Intersect(result2);
+                        if (result.Any())
+                        {
+                            Items = result.CopyToDataTable();
+                        }
+                        else
+                        {
+                            Items.Rows.Clear();
+                        }
+
+                        // Items.DefaultView.RowFilter = $"{data.SelectedField} LIKE '%{data.SearchText}%'";
                     }
                 }
             });
@@ -198,7 +243,7 @@ namespace william_sku.ViewModels
             try
             {
                 Items.Clear();
-                var dt = _database.ListItems();
+                var dt = _database.ListItemsAsDataTable();
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {

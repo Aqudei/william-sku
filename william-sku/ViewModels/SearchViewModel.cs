@@ -16,8 +16,16 @@ namespace william_sku.ViewModels
 
         public DialogCloseListener RequestClose { get; }
         public ObservableCollection<string> Fields { get; set; } = new();
+        public ObservableCollection<string> RangeFields { get; set; } = new();
         public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
         public string SelectedField { get; set; }
+
+        public string SelectedRangeField { get; set; }
+        public string SearchFrom { get => _searchFrom; set => SetProperty(ref _searchFrom, value); }
+        public string SearchTo { get => _searchTo; set => SetProperty(ref _searchTo, value); }
+
+
+
         public bool CanCloseDialog() => true;
 
         public void OnDialogClosed()
@@ -27,12 +35,18 @@ namespace william_sku.ViewModels
         {
             var headers = _database.ListHeaders().ToArray();
             Fields.Clear();
-            Fields.AddRange(headers.Select(h=>h.Name));
+            Fields.AddRange(headers.Select(h => h.Name));
 
-            AddExtraField(NoneField, 0);
+            AddExtraField(Fields, NoneField, 0);
+
+
+            RangeFields.Clear();
+            RangeFields.AddRange(headers.Where(h => h.Range).Select(h => h.Name));
+            AddExtraField(RangeFields, NoneField, 0);
+
         }
 
-        private void AddExtraField(string fieldName, int index)
+        private void AddExtraField(ICollection<string> collection, string fieldName, int index)
         {
             if (!Fields.Contains(fieldName))
             {
@@ -57,6 +71,8 @@ namespace william_sku.ViewModels
 
         private DelegateCommand _applySearchCommand;
         private string _searchText;
+        private string _searchFrom;
+        private string _searchTo;
 
         public DelegateCommand ApplySearchCommand
         {

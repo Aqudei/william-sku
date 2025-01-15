@@ -14,10 +14,22 @@
         </Grid.RowDefinitions>
         
         <StackPanel>
+            <Label>Range Search</Label>
             <ComboBox Margin="2" 
                       ItemsSource="{Binding Fields}"
                       SelectedItem="{Binding SelectedField, Mode=OneWayToSource}"/>
             <TextBox Margin="2" Text="{Binding SearchText}"/>
+
+            <Label>Range Search</Label>
+            <ComboBox Margin="2" 
+                      ItemsSource="{Binding RangeFields}"
+                      SelectedItem="{Binding SelectedRangeField, Mode=OneWayToSource}"/>
+            <Label>From:</Label>
+            <TextBox Text="{Binding SearchFrom}"/>
+            <Label>To:</Label>
+            <TextBox Text="{Binding SearchTo}"/>
+            
+
         </StackPanel>
 
 
@@ -28,6 +40,8 @@
             <Button Content="Apply Search"
                     Margin="2"
                     Command="{Binding ApplySearchCommand}"/>
+
+            
         </StackPanel>
     </Grid>
 </UserControl>
