@@ -40,58 +40,57 @@ namespace william_sku.ViewModels
                 if (dialogResult.Result == ButtonResult.OK)
                 {
                     var data = dialogResult.Parameters["Data"] as SearchViewModel;
-                    if (data != null)
+                    if (data == null ||
+                        (data.SelectedField == SearchViewModel.NoneField && data.SelectedRangeField == SearchViewModel.NoneField))
                     {
-                        if (data.SelectedField == SearchViewModel.NoneField && data.SelectedRangeField == SearchViewModel.NoneField)
-                        {
-                            return;
-                        }
-
-                        var items = _database.ListItemsAsDataTable();
-                        var result1 = new List<DataRow>();
-                        var result2 = new List<DataRow>();
-
-                        if (data.SelectedField != SearchViewModel.NoneField)
-                        {
-                            var searchResult = from row in items.AsEnumerable()
-                                               where row.Field<string>(data.SelectedField).Contains(data.SearchText)
-                                               select row;
-
-                            if (searchResult != null && searchResult.Any())
-                            {
-                                result1.AddRange(searchResult);
-                            }
-                        }
-
-                        if (data.SelectedRangeField != SearchViewModel.NoneField)
-                        {
-                            var rgx = new Regex(@"\d+$");
-                            var query1 = from row in items.AsEnumerable()
-                                         select new { Regex = rgx.Match(row.Field<string>(data.SelectedRangeField)).Value, Row = row };
-
-                            var query2 = from item in query1
-                                         let regexValue = item.Regex
-                                         let number = int.TryParse(regexValue, out var result) ? result : (int?)null
-                                         where number.HasValue && number.Value >= int.Parse(data.SearchFrom) && number.Value <= int.Parse(data.SearchTo)
-                                         select item.Row;
-                            if (query2 != null && query2.Any())
-                            {
-                                result2.AddRange(query2);
-                            }
-                        }
-
-                        var result = result1.Intersect(result2);
-                        if (result.Any())
-                        {
-                            Items = result.CopyToDataTable();
-                        }
-                        else
-                        {
-                            Items.Rows.Clear();
-                        }
-
-                        // Items.DefaultView.RowFilter = $"{data.SelectedField} LIKE '%{data.SearchText}%'";
+                        return;
                     }
+
+                    var items = _database.ListItemsAsDataTable();
+                    var result1 = new List<DataRow>();
+                    var result2 = new List<DataRow>();
+
+                    // Filter by SelectedField if applicable
+                    if (!string.IsNullOrEmpty(data.SelectedField) && data.SelectedField != SearchViewModel.NoneField)
+                    {
+                        result1 = items.AsEnumerable()
+                                       .Where(row => row.Field<string>(data.SelectedField)?.Contains(data.SearchText) == true)
+                                       .ToList();
+                    }
+
+                    // Filter by SelectedRangeField if applicable
+                    if (!string.IsNullOrEmpty(data.SelectedRangeField) && data.SelectedRangeField != SearchViewModel.NoneField)
+                    {
+                        var rgx = new Regex(@"\d+$");
+                        if (int.TryParse(rgx.Match(data.SearchFrom).Value, out var searchFrom) &&
+                            int.TryParse(rgx.Match(data.SearchTo).Value, out var searchTo))
+                        {
+                            result2 = items.AsEnumerable()
+                                           .Where(row =>
+                                           {
+                                               var value = rgx.Match(row.Field<string>(data.SelectedRangeField)).Value;
+                                               return int.TryParse(value, out var number) && number >= searchFrom && number <= searchTo;
+                                           })
+                                           .ToList();
+                        }
+                    }
+
+                    // Combine results based on conditions
+                    IEnumerable<DataRow> combinedResults;
+                    if (!string.IsNullOrEmpty(data.SelectedField) &&
+                        !string.IsNullOrEmpty(data.SelectedRangeField) &&
+                        data.SelectedRangeField != SearchViewModel.NoneField)
+                    {
+                        combinedResults = result1.Intersect(result2);
+                    }
+                    else
+                    {
+                        combinedResults = result1.Union(result2);
+                    }
+
+                    // Update Items with combined results
+                    Items = combinedResults.Any() ? combinedResults.CopyToDataTable() : new DataTable();
+
                 }
             });
         }
