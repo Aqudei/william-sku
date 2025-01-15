@@ -342,5 +342,26 @@ namespace william_sku.Data
             transaction.Commit();
             connection.Close();
         }
+
+        internal DataTable ListItemsBetweenDatesAsDataTable(string header, string searchFrom, string searchTo)
+        {
+            var headers = ListHeaders().ToArray();
+            var colMapping = headers.ToDictionary(h => h.Name);
+
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var commandText = $"SELECT * FROM MCRecords WHERE {header} BETWEEN @SearchFrom AND @SearchTo";
+            using var command = new SqliteCommand(commandText, connection);
+            command.Parameters.AddWithValue("@SearchFrom", searchFrom);
+            command.Parameters.AddWithValue("@SearchTo", searchTo);
+            var reader = command.ExecuteReader();
+            var dataTable = new DataTable();
+            dataTable.Load(reader);
+
+            connection.Close();
+
+            return dataTable;
+        }
     }
 }

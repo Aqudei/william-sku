@@ -77,6 +77,7 @@ namespace william_sku
 
             // Add columns to DataTable
             int startRow = 2;
+            var dateColumns = new List<int>();
             for (int col = 1; col <= columns; col++)
             {
                 var columnName = worksheet.Cells[1, col].Text;
@@ -86,6 +87,11 @@ namespace william_sku
 
                 var headerColumn = colMapping[columnName];
                 var databaseColumnName = headerColumn.Name;
+
+                if (databaseColumnName == "AddedDate" || databaseColumnName == "LastUpdate")
+                {
+                    dateColumns.Add(col);
+                }
 
                 var dataColumn = dataTable.Columns.Add(databaseColumnName);
                 dataColumn.Caption = headerColumn.Display;
@@ -97,11 +103,17 @@ namespace william_sku
                 var dataRow = dataTable.NewRow();
                 for (int col = 1; col <= columns; col++)
                 {
-                    dataRow[col - 1] = worksheet.Cells[row, col].Text;
+                    var value = worksheet.Cells[row, col].Text;
+                    if (dateColumns.Count>0 && dateColumns.Contains(col))
+                    {
+                        var dateValue = DateOnly.ParseExact(value, "M/d/yyyy");
+                        value = dateValue.ToString("yyyy-MM-dd");
+                    }
+
+                    dataRow[col - 1] = value;
                 }
                 dataTable.Rows.Add(dataRow);
             }
-
 
             return dataTable;
         }

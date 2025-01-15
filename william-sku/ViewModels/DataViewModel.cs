@@ -1,4 +1,5 @@
-﻿using MahApps.Metro.Controls.Dialogs;
+﻿using ControlzEx.Standard;
+using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Win32;
 using NLog;
 using OfficeOpenXml;
@@ -71,6 +72,7 @@ namespace william_sku.ViewModels
                     if (data == null ||
                         (string.IsNullOrEmpty(data.SelectedField) && string.IsNullOrEmpty(data.SelectedRangeField)))
                     {
+                        Items.DefaultView.RowFilter = string.Empty;
                         return;
                     }
 
@@ -89,17 +91,26 @@ namespace william_sku.ViewModels
                     // Filter by SelectedRangeField if applicable
                     if (!string.IsNullOrEmpty(data.SelectedRangeField))
                     {
-                        var rgx = new Regex(@"\d+$");
-                        if (int.TryParse(rgx.Match(data.SearchFrom).Value, out var searchFrom) &&
-                            int.TryParse(rgx.Match(data.SearchTo).Value, out var searchTo))
+                        if (data.SelectedRangeField == "AddedDate" || data.SelectedRangeField == "LastUpdate")
                         {
-                            result2 = items.AsEnumerable()
-                                           .Where(row =>
-                                           {
-                                               var value = rgx.Match(row.Field<string>(data.SelectedRangeField)).Value;
-                                               return int.TryParse(value, out var number) && number >= searchFrom && number <= searchTo;
-                                           })
-                                           .ToList();
+                            result2 = _database.ListItemsBetweenDatesAsDataTable(data.SelectedRangeField, data.SearchFrom, data.SearchTo)
+                            .AsEnumerable()
+                            .ToList();
+                        }
+                        else
+                        {
+                            var rgx = new Regex(@"\d+$");
+                            if (int.TryParse(rgx.Match(data.SearchFrom).Value, out var searchFrom) &&
+                                int.TryParse(rgx.Match(data.SearchTo).Value, out var searchTo))
+                            {
+                                result2 = items.AsEnumerable()
+                                               .Where(row =>
+                                               {
+                                                   var value = rgx.Match(row.Field<string>(data.SelectedRangeField)).Value;
+                                                   return int.TryParse(value, out var number) && number >= searchFrom && number <= searchTo;
+                                               })
+                                               .ToList();
+                            }
                         }
                     }
 
@@ -117,7 +128,14 @@ namespace william_sku.ViewModels
                     }
 
                     // Update Items with combined results
-                    Items = combinedResults.Any() ? combinedResults.CopyToDataTable() : new DataTable();
+                    if (combinedResults.Any())
+                    {
+                        Items = combinedResults.CopyToDataTable();
+                    }
+                    else
+                    {
+                        Items.DefaultView.RowFilter = "1=0";
+                    }
 
                 }
             });
