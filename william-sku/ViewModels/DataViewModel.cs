@@ -40,7 +40,7 @@ namespace william_sku.ViewModels
                             Items.DefaultView.RowFilter = $"1=1";
                             return;
                         }
-                        Items.DefaultView.RowFilter = $"{data.SelectedField} = '{data.SearchText}'";
+                        Items.DefaultView.RowFilter = $"{data.SelectedField} LIKE '%{data.SearchText}%'";
                     }
                 }
             });
@@ -73,52 +73,84 @@ namespace william_sku.ViewModels
             var headers = _database.ListHeaders().ToArray();
             var dialog = new OpenFileDialog();
             var result = dialog.ShowDialog();
+
+
             if (result.HasValue && result.Value)
             {
-                var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
-
-                if (dataTable != null && dataTable.Rows.Count > 0)
+                Task.Run(async () =>
                 {
-                    foreach (DataRow row in dataTable.Rows)
+                    var progress = await _dialogCoordinator.ShowProgressAsync(this,
+                        "Please wait", $"Deleting bulk based on MC# from {dialog.FileName}");
+                    progress.SetIndeterminate();
+                    try
                     {
-                        var mcNum = row["MCNumber"];
-                        _database.Delete(mcNum);
+                        var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
+
+                        if (dataTable != null && dataTable.Rows.Count > 0)
+                        {
+                            foreach (DataRow row in dataTable.Rows)
+                            {
+                                var mcNum = row["MCNumber"];
+                                _database.Delete(mcNum);
+                            }
+
+                            await LoadItems();
+                        }
                     }
-
-                    Task.Run(LoadItems);
-
-                }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex);
+                    }
+                    finally
+                    {
+                        await progress.CloseAsync();
+                    }
+                });
             }
+
         }
 
         private void OnImportFile()
         {
-            var headers = _database.ListHeaders().ToArray();
             var dialog = new OpenFileDialog();
             var result = dialog.ShowDialog();
             if (result.HasValue && result.Value)
             {
-                var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
-                if (dataTable != null && dataTable.Rows.Count > 0)
+                Task.Run(async () =>
                 {
-                    foreach (DataRow row in dataTable.Rows)
-                    {
-                        var mcNum = row["MCNumber"];
-                        _database.UpdateOrCreate(mcNum, row);
-                    }
-                }
+                    var headers = _database.ListHeaders().ToArray();
 
-                Task.Run(LoadItems);
+                    var progress = await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Importing {dialog.FileName}");
+                    progress.SetIndeterminate();
+                    try
+                    {
+
+                        var dataTable = Utils.WorksheetToDataTable(dialog.FileName, true, headers);
+                        if (dataTable != null && dataTable.Rows.Count > 0)
+                        {
+                            foreach (DataRow row in dataTable.Rows)
+                            {
+                                var mcNum = row["MCNumber"];
+                                _database.UpdateOrCreate(mcNum, row);
+                            }
+                        }
+
+                        await LoadItems();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex);
+                    }
+                    finally
+                    {
+                        await progress.CloseAsync();
+                    }
+                });
             }
         }
 
-
-
-        private async void LoadItems()
+        private async Task LoadItems()
         {
-            var progess = await _dialogCoordinator.ShowProgressAsync(this, "Please wait.", "Loading items...");
-            progess.SetIndeterminate();
-
             try
             {
                 Items.Clear();
@@ -128,16 +160,10 @@ namespace william_sku.ViewModels
                 {
                     Items = dt;
                 });
-
-
             }
             catch (Exception ex)
             {
                 Debug.WriteLine(ex);
-            }
-            finally
-            {
-                await progess.CloseAsync();
             }
         }
 
