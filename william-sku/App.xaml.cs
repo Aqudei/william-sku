@@ -29,6 +29,7 @@ namespace william_sku
         {
             var regionManager = Container.Resolve<IRegionManager>();
             regionManager.RegisterViewWithRegion("MainRegion", typeof(Views.Data));
+            regionManager.RegisterViewWithRegion("MainRegion", typeof(Views.Settings));
 
             containerRegistry.RegisterSingleton<Data.Database>();
             containerRegistry.RegisterDialogWindow<MetroDialog>();

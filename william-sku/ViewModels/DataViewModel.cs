@@ -20,6 +20,7 @@ namespace william_sku.ViewModels
         private readonly Database _database;
         private readonly IDialogService _dialogService;
         private readonly IDialogCoordinator _dialogCoordinator;
+        private readonly IRegionManager _regionManager;
 
         public DataTable Items { get => _items; set => SetProperty(ref _items, value); }
 
@@ -56,7 +57,9 @@ namespace william_sku.ViewModels
 
         private void OnSettings()
         {
-            _dialogService.ShowDialog("Settings");
+            //_dialogService.ShowDialog("Settings");
+
+            _regionManager.RequestNavigate("MainRegion", "Settings");
         }
 
         private DelegateCommand _bulkDeleteCommand;
@@ -167,11 +170,12 @@ namespace william_sku.ViewModels
             }
         }
 
-        public DataViewModel(Database database, IDialogService dialogService, IDialogCoordinator dialogCoordinator)
+        public DataViewModel(Database database, IDialogService dialogService, IDialogCoordinator dialogCoordinator, IRegionManager regionManager)
         {
             _database = database;
             _dialogService = dialogService;
             _dialogCoordinator = dialogCoordinator;
+            _regionManager = regionManager;
             Task.Run(LoadItems);
         }
     }

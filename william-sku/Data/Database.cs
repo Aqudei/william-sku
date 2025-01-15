@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using william_sku.Models;
 using static OfficeOpenXml.ExcelErrorValue;
 
@@ -300,6 +301,47 @@ namespace william_sku.Data
             using var command = new SqliteCommand(commandText, connection);
             command.Parameters.AddWithValue("@MCNumber", mcNum);
             var affected = command.ExecuteNonQuery();
+            connection.Close();
+        }
+
+        internal void SaveNewHeader(Header newHeader)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+
+            var insertCommandText = "INSERT INTO Headers (Name,Display,Range,Required) VALUES (@Name,@Display,@Range,@Required)";
+            var insertCommand = new SqliteCommand(insertCommandText, connection, transaction);
+            insertCommand.Parameters.AddWithValue("@Name", newHeader.Name);
+            insertCommand.Parameters.AddWithValue("@Display", newHeader.Display);
+            insertCommand.Parameters.AddWithValue("@Range", newHeader.Range);
+            insertCommand.Parameters.AddWithValue("@Required", newHeader.Required);
+            insertCommand.ExecuteNonQuery();
+
+            var alterCommandText = $"ALTER TABLE MCRecords ADD COLUMN {newHeader.Name} TEXT";
+            var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
+            alterCommand.ExecuteNonQuery();
+
+            transaction.Commit();
+            connection.Close();
+        }
+
+        internal void DeleteHeader(Header header)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+
+            var insertCommandText = "DELETE FROM Headers WHERE Name=@Name";
+            var insertCommand = new SqliteCommand(insertCommandText, connection, transaction);
+            insertCommand.Parameters.AddWithValue("@Name", header.Name);
+            insertCommand.ExecuteNonQuery();
+
+            var alterCommandText = $"ALTER TABLE MCRecords DROP COLUMN {header.Name}";
+            var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
+            alterCommand.ExecuteNonQuery();
+
+            transaction.Commit();
             connection.Close();
         }
     }
