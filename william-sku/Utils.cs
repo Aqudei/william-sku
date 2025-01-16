@@ -5,6 +5,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using william_sku.Models;
 
@@ -104,10 +105,10 @@ namespace william_sku
                 for (int col = 1; col <= columns; col++)
                 {
                     var value = worksheet.Cells[row, col].Text;
-                    if (dateColumns.Count>0 && dateColumns.Contains(col))
+                    if (dateColumns.Count > 0 && dateColumns.Contains(col))
                     {
-                        var dateValue = DateOnly.ParseExact(value, "M/d/yyyy");
-                        value = dateValue.ToString("yyyy-MM-dd");
+                        if (DateOnly.TryParse(value, out var dateValue))
+                            value = dateValue.ToString("yyyy-MM-dd");
                     }
 
                     dataRow[col - 1] = value;

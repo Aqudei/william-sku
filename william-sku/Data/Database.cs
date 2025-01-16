@@ -241,8 +241,14 @@ namespace william_sku.Data
 
             foreach (var header in headers)
             {
-                var value = row[header.Name];
-                command.Parameters.AddWithValue($"@{header.Name}", value);
+                if (row.Table.Columns.Contains(header.Name))
+                {
+                    var value = row[header.Name];
+                    command.Parameters.AddWithValue($"@{header.Name}", value);
+                } else
+                {
+                    command.Parameters.AddWithValue($"@{header.Name}", DBNull.Value);
+                }
             }
             var affected = command.ExecuteNonQuery();
             connection.Close();
