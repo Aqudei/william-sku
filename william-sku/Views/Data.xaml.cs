@@ -1,7 +1,10 @@
-﻿using System;
+﻿using DryIoc.ImTools;
+using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,6 +26,15 @@ namespace william_sku.Views
         public Data()
         {
             InitializeComponent();
+        }
+
+     
+
+        private void SaveColumnOrdering(object sender, RoutedEventArgs e)
+        {
+            var columnsState = ItemsDataGrid.Columns.Select(i => i.Header.ToString());
+            Properties.Settings.Default.ColumnsOrdering = JsonSerializer.Serialize(columnsState);
+            Properties.Settings.Default.Save();
         }
     }
 }

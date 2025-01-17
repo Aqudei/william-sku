@@ -3,6 +3,7 @@ using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Win32;
 using NLog;
 using OfficeOpenXml;
+using SQLitePCL;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -12,9 +13,12 @@ using System.DirectoryServices;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Documents;
 using william_sku.Data;
 
 namespace william_sku.ViewModels
@@ -209,10 +213,20 @@ namespace william_sku.ViewModels
             var result = dialog.ShowDialog();
 
 
+
+
             if (result.HasValue && result.Value)
             {
+
                 Task.Run(async () =>
                 {
+                    var prompt = await _dialogCoordinator.ShowMessageAsync(this, "Confirm Action", "Are you sure you want to continue with bulk delete operation?",
+                        MessageDialogStyle.AffirmativeAndNegative);
+
+                    if (prompt == MessageDialogResult.Negative)
+                        return;
+
+
                     var progress = await _dialogCoordinator.ShowProgressAsync(this,
                         "Please wait", $"Deleting bulk based on MC# from {dialog.FileName}");
                     progress.SetIndeterminate();
@@ -309,5 +323,8 @@ namespace william_sku.ViewModels
             _regionManager = regionManager;
             Task.Run(LoadItems);
         }
+
+
+
     }
 }
