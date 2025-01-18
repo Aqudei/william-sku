@@ -21,7 +21,7 @@ namespace william_sku
             using (ExcelPackage package = new ExcelPackage())
             {
                 // Add a worksheet to the package
-                ExcelWorksheet worksheet = package.Workbook.Worksheets.Add(dataTable.TableName);
+                ExcelWorksheet worksheet = package.Workbook.Worksheets.Add("MCRecords");
 
                 // Load the DataTable into the worksheet
                 worksheet.Cells["A1"].LoadFromDataTable(dataTable, true);
