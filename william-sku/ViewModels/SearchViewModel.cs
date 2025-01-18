@@ -94,6 +94,10 @@ namespace william_sku.ViewModels
 
             SelectedField = null;
             SelectedRangeField = null;
+
+
+            RequestClose.Invoke(new DialogParameters { { "Data", this } }, ButtonResult.OK);
+
         }
 
         private void OnApplySearch()

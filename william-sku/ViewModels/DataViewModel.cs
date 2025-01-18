@@ -66,9 +66,10 @@ namespace william_sku.ViewModels
 
         public DelegateCommand SearchCommand => _searchCommand ??= new DelegateCommand(OnSearch);
 
+
         private void OnSearch()
         {
-            _dialogService.ShowDialog("Search", dialogResult =>
+            _dialogService.ShowDialog("Search", async dialogResult =>
             {
                 if (dialogResult.Result == ButtonResult.OK)
                 {
@@ -76,7 +77,7 @@ namespace william_sku.ViewModels
                     if (data == null ||
                         (string.IsNullOrEmpty(data.SelectedField) && string.IsNullOrEmpty(data.SelectedRangeField)))
                     {
-                        Items.DefaultView.RowFilter = string.Empty;
+                        await LoadItemsWithProgressBar();
                         return;
                     }
 
@@ -143,6 +144,26 @@ namespace william_sku.ViewModels
 
                 }
             });
+        }
+
+        private async Task LoadItemsWithProgressBar()
+        {
+            var progress = await _dialogCoordinator.ShowProgressAsync(this, "Please wait", "Loading items");
+            progress.SetIndeterminate();
+
+            try
+            {
+
+                await Task.Run(LoadItems);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex);
+            }
+            finally
+            {
+                await progress.CloseAsync();
+            }
         }
 
         private DelegateCommand _exportCommand;
