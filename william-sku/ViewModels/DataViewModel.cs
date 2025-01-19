@@ -281,7 +281,11 @@ namespace william_sku.ViewModels
 
         private void OnImportFile()
         {
-            var dialog = new OpenFileDialog();
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Excel Files (*.xlsx)|*.xlsx|CSV Files (*.csv)|*.csv"
+            };
+
             var result = dialog.ShowDialog();
             if (result.HasValue && result.Value)
             {
@@ -309,6 +313,7 @@ namespace william_sku.ViewModels
                     catch (Exception ex)
                     {
                         Logger.Error(ex);
+                        await _dialogCoordinator.ShowMessageAsync(this, "Import Error", ex.Message + $"\n\n{ex.StackTrace}");
                     }
                     finally
                     {

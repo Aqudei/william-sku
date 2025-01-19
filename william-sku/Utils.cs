@@ -1,7 +1,9 @@
-﻿using OfficeOpenXml;
+﻿using CsvHelper;
+using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -62,8 +64,74 @@ namespace william_sku
             return dbPath;
         }
 
+        private static DataTable CsvToDataTable(string filePath, IEnumerable<Header> headers)
+        {
+            var colMapping = headers.ToDictionary(h => h.Display);
+
+            // Create a DataTable
+            var dataTable = new DataTable();
+
+            // Populate the DataTable from CSV
+            using (var reader = new StreamReader(filePath))
+            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
+            {
+                // Read the header row to define columns
+                csv.Read();
+                csv.ReadHeader();
+
+                var dateColumns = new List<int>();
+
+                for (int i = 0; i < csv.HeaderRecord.Length; i++)
+                {
+                    var columnName = csv.HeaderRecord[i];
+                    if (!colMapping.ContainsKey(columnName))
+                        continue;
+
+                    var headerColumn = colMapping[columnName];
+                    var databaseColumnName = headerColumn.Name;
+
+                    var dataColumn = dataTable.Columns.Add(databaseColumnName);
+                    dataColumn.Caption = headerColumn.Display;
+
+
+                }
+
+                // Read the data rows and populate the DataTable
+
+                while (csv.Read())
+                {
+                    DataRow row = dataTable.NewRow();
+                    foreach (var header in csv.HeaderRecord)
+                    {
+                        if (!colMapping.ContainsKey(header))
+                            continue;
+
+                        var headerColumn = colMapping[header];
+                        var value = csv.GetField(header);
+
+                        if (headerColumn.Name == "AddedDate" || headerColumn.Name == "LastUpdate")
+                        {
+                            if (DateOnly.TryParse(value, out var dateValue))
+                                value = dateValue.ToString("yyyy-MM-dd");
+                        }
+
+                        row[headerColumn.Name] = value;
+                    }
+
+                    dataTable.Rows.Add(row);
+                }
+            }
+
+            return dataTable;
+        }
+
         public static DataTable WorksheetToDataTable(string filename, IEnumerable<Header> headers)
         {
+            if(Path.GetExtension(filename).ToUpper().EndsWith(".CSV"))
+                return CsvToDataTable(filename, headers);
+
+
+
             var colMapping = headers.ToDictionary(h => h.Display);
 
             var fileInfo = new FileInfo(filename);
