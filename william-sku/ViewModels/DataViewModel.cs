@@ -283,7 +283,7 @@ namespace william_sku.ViewModels
         {
             var dialog = new OpenFileDialog
             {
-                Filter = "Excel Files (*.xlsx)|*.xlsx|CSV Files (*.csv)|*.csv"
+                Filter = "Excel / CSV Files (*.xlsx;*.csv)|*.xlsx;*.csv"
             };
 
             var result = dialog.ShowDialog();
@@ -329,7 +329,7 @@ namespace william_sku.ViewModels
             {
                 Items.Clear();
                 var dt = _database.ListItemsAsDataTable();
-
+                Debug.WriteLine($"Loaded a total of '{dt.Rows.Count}' items");
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     Items = dt;
