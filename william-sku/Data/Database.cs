@@ -247,26 +247,27 @@ namespace william_sku.Data
             {
                 var ignoredColumns = new List<string>() { "MCNumber", "AddedDate", "LastUpdate" };
                 var headers = ListHeaders().Select(h => h.Name).Where(h => !ignoredColumns.Contains(h)).ToList();
+                var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers).ToHashSet();
 
                 var exist = CheckExist(mcNum);
                 var insertOrUpdateQuery = "";
                 if (exist)
                 {
-                    headers.Add("LastUpdate");
+                    workingColumns.Add("LastUpdate");
                     insertOrUpdateQuery = (@$" 
                 UPDATE MCRecords SET 
-                    {string.Join(",", headers.Select(h => $"{h} = @{h}"))}
+                    {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
                 WHERE MCNumber=@MCNumber;
             ");
                 }
                 else
                 {
-                    headers.Add("AddedDate");
+                    workingColumns.Add("AddedDate");
                     insertOrUpdateQuery = (@$" 
                 INSERT INTO MCRecords (
-                    MCNumber,{string.Join(',', headers.ToHashSet())}
+                    MCNumber,{string.Join(',', workingColumns)}
                 ) VALUES (
-                   @MCNumber,{string.Join(',', headers.ToHashSet().Select(h => "@" + h))}
+                   @MCNumber,{string.Join(',', workingColumns.Select(h => "@" + h))}
                 );
             ");
                 }
@@ -283,19 +284,15 @@ namespace william_sku.Data
                 else
                     command.Parameters.AddWithValue($"@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
-                foreach (var header in headers)
+                foreach (var workingColumn in workingColumns)
                 {
-                    if (row.Table.Columns.Contains(header))
+                    if (!command.Parameters.Contains($"@{workingColumn}"))
                     {
-                        if (!command.Parameters.Contains($"@{header}"))
-                        {
-                            var value = row[header];
-                            command.Parameters.AddWithValue($"@{header}", value);
-                        }
-                    }
-                    else
-                    {
-                        command.Parameters.AddWithValue($"@{header}", DBNull.Value);
+                        var value = row[workingColumn];
+                        if (value == null)
+                            command.Parameters.AddWithValue($"@{workingColumn}", DBNull.Value);
+                        else
+                            command.Parameters.AddWithValue($"@{workingColumn}", value);
                     }
                 }
                 Debug.WriteLine("Parameters:");
