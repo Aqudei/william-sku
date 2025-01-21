@@ -25,6 +25,8 @@ namespace william_sku.ViewModels
 {
     internal class DataViewModel : BindableBase
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         public class MCRecordsComparer : IEqualityComparer<DataRow>
         {
             public bool Equals(DataRow? x, DataRow? y)
@@ -52,7 +54,6 @@ namespace william_sku.ViewModels
             }
         }
 
-        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         private DataTable _items = new DataTable();
         private DelegateCommand _importCommand;
@@ -303,7 +304,7 @@ namespace william_sku.ViewModels
                         {
                             foreach (DataRow row in dataTable.Rows)
                             {
-                                var mcNum = row["MCNumber"];
+                                var mcNum = row.Field<string>("MCNumber");
                                 _database.UpdateOrCreate(mcNum, row);
                             }
                         }

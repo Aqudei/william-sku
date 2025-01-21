@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -16,6 +17,8 @@ namespace william_sku.Data
 {
     internal class Database
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
         private string _connectionString;
 
         public Database()
@@ -221,37 +224,94 @@ namespace william_sku.Data
             connection.Close();
         }
 
-        internal void UpdateOrCreate(object mcNum, DataRow row)
+        public bool CheckExist(string mcNumber)
         {
+            var findQuery = "SELECT * FROM MCRecords WHERE MCNumber=@MCNumber";
 
-            var headers = ListHeaders().Where(h => h.Name != "MCNumber").ToArray();
-
-            string insertOrReplaceQuery = (@$" 
-                INSERT OR REPLACE INTO MCRecords (
-                    MCNumber,{string.Join(',', headers.Select(h => h.Name))}
-                ) VALUES (
-                   @MCNumber,{string.Join(',', headers.Select(h => "@" + h.Name))}
-                );
-            ");
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
 
-            using var command = new SqliteCommand(insertOrReplaceQuery, connection);
-            command.Parameters.AddWithValue($"@MCNumber", mcNum);
+            using var command = new SqliteCommand(findQuery, connection);
+            command.Parameters.AddWithValue("@MCNumber", mcNumber);
+            var reader = command.ExecuteReader();
 
-            foreach (var header in headers)
-            {
-                if (row.Table.Columns.Contains(header.Name))
-                {
-                    var value = row[header.Name];
-                    command.Parameters.AddWithValue($"@{header.Name}", value);
-                } else
-                {
-                    command.Parameters.AddWithValue($"@{header.Name}", DBNull.Value);
-                }
-            }
-            var affected = command.ExecuteNonQuery();
+            var exist = reader.HasRows;
+
             connection.Close();
+            return exist;
+        }
+
+        public void UpdateOrCreate(string mcNum, DataRow row)
+        {
+            try
+            {
+                var ignoredColumns = new List<string>() { "MCNumber", "AddedDate", "LastUpdate" };
+                var headers = ListHeaders().Select(h => h.Name).Where(h => !ignoredColumns.Contains(h)).ToList();
+
+                var exist = CheckExist(mcNum);
+                var insertOrUpdateQuery = "";
+                if (exist)
+                {
+                    headers.Add("LastUpdate");
+                    insertOrUpdateQuery = (@$" 
+                UPDATE MCRecords SET 
+                    {string.Join(",", headers.Select(h => $"{h} = @{h}"))}
+                WHERE MCNumber=@MCNumber;
+            ");
+                }
+                else
+                {
+                    headers.Add("AddedDate");
+                    insertOrUpdateQuery = (@$" 
+                INSERT INTO MCRecords (
+                    MCNumber,{string.Join(',', headers.ToHashSet())}
+                ) VALUES (
+                   @MCNumber,{string.Join(',', headers.ToHashSet().Select(h => "@" + h))}
+                );
+            ");
+                }
+
+                Debug.WriteLine(insertOrUpdateQuery);
+
+                using var connection = new SqliteConnection(_connectionString);
+                connection.Open();
+
+                using var command = new SqliteCommand(insertOrUpdateQuery, connection);
+                command.Parameters.AddWithValue($"@MCNumber", mcNum);
+                if (exist)
+                    command.Parameters.AddWithValue($"@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+                else
+                    command.Parameters.AddWithValue($"@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+
+                foreach (var header in headers)
+                {
+                    if (row.Table.Columns.Contains(header))
+                    {
+                        if (!command.Parameters.Contains($"@{header}"))
+                        {
+                            var value = row[header];
+                            command.Parameters.AddWithValue($"@{header}", value);
+                        }
+                    }
+                    else
+                    {
+                        command.Parameters.AddWithValue($"@{header}", DBNull.Value);
+                    }
+                }
+                Debug.WriteLine("Parameters:");
+                foreach (SqliteParameter item in command.Parameters)
+                {
+                    Debug.WriteLine($"Name:{item.ParameterName}, Value:{item.Value}");
+
+                }
+                var affected = command.ExecuteNonQuery();
+                connection.Close();
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                throw;
+            }
         }
 
         public IEnumerable<Header> ListHeaders()
