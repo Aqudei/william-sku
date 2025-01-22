@@ -50,7 +50,8 @@ namespace william_sku.ViewModels
                 }
 
                 var value = obj["MCNumber"];
-                return value != null ? value.GetHashCode() : 0;
+                
+                return value.GetHashCode();
             }
         }
 
@@ -70,12 +71,14 @@ namespace william_sku.ViewModels
 
         private void OnSearch()
         {
-            _dialogService.ShowDialog("Search", async dialogResult =>
+            _dialogService.ShowDialog("Search", async void (dialogResult) =>
             {
-                if (dialogResult.Result == ButtonResult.OK)
+                try
                 {
-                    var data = dialogResult.Parameters["Data"] as SearchViewModel;
-                    if (data == null ||
+                    if (dialogResult.Result != ButtonResult.OK)
+                        return;
+
+                    if (dialogResult.Parameters["Data"] is not SearchViewModel data ||
                         (string.IsNullOrEmpty(data.SelectedField) && string.IsNullOrEmpty(data.SelectedRangeField)))
                     {
                         await LoadItemsWithProgressBar();
@@ -90,18 +93,18 @@ namespace william_sku.ViewModels
                     if (!string.IsNullOrEmpty(data.SelectedField))
                     {
                         result1 = items.AsEnumerable()
-                                       .Where(row => row.Field<string>(data.SelectedField)?.Contains(data.SearchText) == true)
-                                       .ToList();
+                            .Where(row => row.Field<string>(data.SelectedField)?.Contains(data.SearchText) == true)
+                            .ToList();
                     }
 
                     // Filter by SelectedRangeField if applicable
                     if (!string.IsNullOrEmpty(data.SelectedRangeField))
                     {
-                        if (data.SelectedRangeField == "AddedDate" || data.SelectedRangeField == "LastUpdate")
+                        if (data.SelectedRangeField is "AddedDate" or "LastUpdate")
                         {
                             result2 = _database.ListItemsBetweenDatesAsDataTable(data.SelectedRangeField, data.SearchFrom, data.SearchTo)
-                            .AsEnumerable()
-                            .ToList();
+                                .AsEnumerable()
+                                .ToList();
                         }
                         else
                         {
@@ -110,12 +113,12 @@ namespace william_sku.ViewModels
                                 int.TryParse(rgx.Match(data.SearchTo).Value, out var searchTo))
                             {
                                 result2 = items.AsEnumerable()
-                                               .Where(row =>
-                                               {
-                                                   var value = rgx.Match(row.Field<string>(data.SelectedRangeField)).Value;
-                                                   return int.TryParse(value, out var number) && number >= searchFrom && number <= searchTo;
-                                               })
-                                               .ToList();
+                                    .Where(row =>
+                                    {
+                                        var value = rgx.Match(row.Field<string>(data.SelectedRangeField) ?? string.Empty).Value;
+                                        return int.TryParse(value, out var number) && number >= searchFrom && number <= searchTo;
+                                    })
+                                    .ToList();
                             }
                         }
                     }
@@ -134,14 +137,21 @@ namespace william_sku.ViewModels
                     }
 
                     // Update Items with combined results
-                    if (combinedResults.Any())
+                    var dataRows
+                        = combinedResults as DataRow[] ?? combinedResults.ToArray();
+                    if (dataRows.Any())
                     {
-                        Items = combinedResults.CopyToDataTable();
+                        Items = dataRows.CopyToDataTable();
                     }
                     else
                     {
                         Items.DefaultView.RowFilter = "1=0";
                     }
+                }
+                catch (Exception e)
+                {
+                    Logger.Error(e);
+                    await _dialogCoordinator.ShowMessageAsync(this, "Search Error", e.Message);
 
                 }
             });
@@ -160,6 +170,7 @@ namespace william_sku.ViewModels
             catch (Exception ex)
             {
                 Logger.Error(ex);
+
             }
             finally
             {
@@ -176,16 +187,19 @@ namespace william_sku.ViewModels
 
         private async void OnExport()
         {
-            var headers = _database.ListHeaders().ToDictionary(h => h.Name);
+            try
+            {
+                var headers = _database.ListHeaders().ToDictionary(h => h.Name);
 
-            var dialog = new SaveFileDialog
-            {
-                DefaultExt = "xlsx",
-                Filter = "Excel Files (*.xlsx)|*.xlsx", // File type filter
-            };
-            var result = dialog.ShowDialog();
-            if (result.HasValue && result.Value)
-            {
+                var dialog = new SaveFileDialog
+                {
+                    DefaultExt = "xlsx",
+                    Filter = "Excel Files (*.xlsx)|*.xlsx", // File type filter
+                };
+                var result = dialog.ShowDialog();
+                if (!result.HasValue || !result.Value)
+                    return;
+
                 var progress = await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Exporting to {dialog.FileName}...");
                 progress.SetIndeterminate();
 
@@ -203,6 +217,10 @@ namespace william_sku.ViewModels
                     await progress.CloseAsync();
                 }
             }
+            catch (Exception e)
+            {
+                await _dialogCoordinator.ShowMessageAsync(this, "Export Error", e.Message);
+            }
         }
 
         public DelegateCommand ImportCommand
@@ -210,7 +228,7 @@ namespace william_sku.ViewModels
             get { return _importCommand ??= new DelegateCommand(OnImportFile); }
         }
 
-        public DelegateCommand SettingsCommand { get => _settingsCommand ??= new DelegateCommand(OnSettings); }
+        public DelegateCommand SettingsCommand => _settingsCommand ??= new DelegateCommand(OnSettings);
 
         private void OnSettings()
         {
@@ -256,7 +274,7 @@ namespace william_sku.ViewModels
                     {
                         var dataTable = Utils.WorksheetToDataTable(dialog.FileName, headers);
 
-                        if (dataTable != null && dataTable.Rows.Count > 0)
+                        if (dataTable.Rows.Count > 0)
                         {
                             foreach (DataRow row in dataTable.Rows)
                             {
@@ -270,6 +288,8 @@ namespace william_sku.ViewModels
                     catch (Exception ex)
                     {
                         Logger.Error(ex);
+                        await _dialogCoordinator.ShowMessageAsync(this, "Bulk Delete Error", ex.Message);
+
                     }
                     finally
                     {
@@ -316,7 +336,7 @@ namespace william_sku.ViewModels
                     catch (Exception ex)
                     {
                         Logger.Error(ex);
-                        await _dialogCoordinator.ShowMessageAsync(this, "Import Error", ex.Message + $"\n\n{ex.StackTrace}");
+                        await _dialogCoordinator.ShowMessageAsync(this, "Import Error", ex.Message);
                     }
                     finally
                     {

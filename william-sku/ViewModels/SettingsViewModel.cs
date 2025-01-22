@@ -38,14 +38,21 @@ namespace william_sku.ViewModels
 
         private async void OnRemoveSelectedHeader()
         {
-            var selected = Headers.Where(h => h.IsSelected && !h.Required);
-
-            foreach (var header in selected)
+            try
             {
-                _database.DeleteHeader(header);
-            }
+                var selected = Headers.Where(h => h.IsSelected && !h.Required);
 
-            await FetchHeaders();
+                foreach (var header in selected)
+                {
+                    _database.DeleteHeader(header);
+                }
+
+                await FetchHeaders();
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+            }
         }
 
         private DelegateCommand _saveHeaderCommand;
@@ -71,16 +78,23 @@ namespace william_sku.ViewModels
 
         private async void OnSaveNewHeader()
         {
-            var newHeader = new Header
+            try
             {
-                Display = NewHeaderDisplay,
-                Name = NewHeaderName,
-                Range = NewHeaderIsRange,
-                Required = NewHeaderIsRequired,
-            };
+                var newHeader = new Header
+                {
+                    Display = NewHeaderDisplay,
+                    Name = NewHeaderName,
+                    Range = NewHeaderIsRange,
+                    Required = NewHeaderIsRequired,
+                };
 
-            _database.SaveNewHeader(newHeader);
-            await FetchHeaders();
+                _database.SaveNewHeader(newHeader);
+                await FetchHeaders();
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+            }
         }
 
         private async Task FetchHeaders()
