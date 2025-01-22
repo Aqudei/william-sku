@@ -295,15 +295,17 @@ namespace william_sku.ViewModels
                     var headers = _database.ListHeaders().ToArray();
 
                     var progress = await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Importing {dialog.FileName}");
-                    progress.SetIndeterminate();
                     try
                     {
-
                         var dataTable = Utils.WorksheetToDataTable(dialog.FileName, headers);
-                        if (dataTable != null && dataTable.Rows.Count > 0)
+                        if (dataTable is { Rows.Count: > 0 })
                         {
-                            foreach (DataRow row in dataTable.Rows)
+                            for (var index = 0; index < dataTable.Rows.Count; index++)
                             {
+                                var percentage = (double)index / dataTable.Rows.Count;
+                                progress.SetProgress(percentage);
+
+                                var row = dataTable.Rows[index];
                                 var mcNum = row.Field<string>("MCNumber");
                                 _database.UpdateOrCreate(mcNum, row);
                             }
