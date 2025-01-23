@@ -1,6 +1,8 @@
 ﻿using System.Data;
+using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection.PortableExecutable;
 using Microsoft.Data.Sqlite;
 using NLog;
 using william_sku.Models;
@@ -26,6 +28,29 @@ public class Database
 
         if (!File.Exists(dbPath))
             CreateTables();
+
+        PatchDatabase();
+    }
+
+    private void PatchDatabase()
+    {
+        using var connection = GetOpenConnection();
+
+        var commandText = "SELECT * FROM Headers";
+        using var command = new SqliteCommand(commandText, connection);
+        using var rdr = command.ExecuteReader();
+
+        var colSchema = rdr.GetColumnSchema();
+        if (!colSchema.Select(c => c.ColumnName).Contains("OrderIndex"))
+        {
+            rdr.Close();
+
+            var alterCommandText = $"ALTER TABLE Headers ADD COLUMN OrderIndex INTEGER DEFAULT 0";
+            var alterCommand = new SqliteCommand(alterCommandText, connection);
+            alterCommand.ExecuteNonQuery();
+        }
+
+        connection?.Close();
     }
 
     private void CreateTables()
@@ -64,7 +89,7 @@ public class Database
             command.ExecuteNonQuery();
         }
 
-        connection.Close();
+        connection?.Close();
     }
 
     private void CreateInitialHeadersTable()
@@ -214,7 +239,7 @@ public class Database
             command.ExecuteNonQuery();
         }
 
-        connection.Close();
+        connection?.Close();
     }
 
     public bool CheckExist(string mcNumber)
@@ -225,11 +250,11 @@ public class Database
 
         using var command = new SqliteCommand(findQuery, connection);
         command.Parameters.AddWithValue("@MCNumber", mcNumber);
-        var reader = command.ExecuteReader();
+        using var reader = command.ExecuteReader();
 
         var exist = reader.HasRows;
 
-        connection.Close();
+        connection?.Close();
         return exist;
     }
 
@@ -291,7 +316,7 @@ public class Database
                 Debug.WriteLine($"Name:{item.ParameterName}, Value:{item.Value}");
 
             var affected = command.ExecuteNonQuery();
-            connection.Close();
+            connection?.Close();
         }
         catch (Exception e)
         {
@@ -306,7 +331,7 @@ public class Database
 
         var commandText = "SELECT * FROM Headers ORDER BY OrderIndex";
         using var command = new SqliteCommand(commandText, connection);
-        var reader = command.ExecuteReader();
+        using var reader = command.ExecuteReader();
 
         while (reader.Read())
             yield return new Header
@@ -318,6 +343,7 @@ public class Database
                 OrderIndex = reader.GetInt32("OrderIndex")
             };
 
+        reader.Close();
         connection?.Close();
     }
 
@@ -405,12 +431,11 @@ public class Database
 
     internal DataTable ListItemsBetweenDatesAsDataTable(string header, string searchFrom, string searchTo)
     {
-        var headers = ListHeaders().ToArray();
-        var colMapping = headers.ToDictionary(h => h.Name);
+        var headers = ListHeaders().OrderBy(h => h.OrderIndex).ToArray();
 
         using var connection = GetOpenConnection();
 
-        var commandText = $"SELECT * FROM MCRecords WHERE {header} BETWEEN @SearchFrom AND @SearchTo";
+        var commandText = $"SELECT {string.Join(',', headers.Select(h => h.Name))} FROM MCRecords WHERE {header} BETWEEN @SearchFrom AND @SearchTo";
         using var command = new SqliteCommand(commandText, connection);
         command.Parameters.AddWithValue("@SearchFrom", searchFrom);
         command.Parameters.AddWithValue("@SearchTo", searchTo);
