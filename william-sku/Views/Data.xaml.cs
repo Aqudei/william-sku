@@ -40,7 +40,7 @@ namespace william_sku.Views
         {
             var columnsState = ItemsDataGrid.Columns.ToDictionary(c => c.DisplayIndex);
 
-            var orderedHeaders = columnsState.OrderBy(i => i.Key).Select(h => h.Value.Header.ToString()).ToList();
+            var orderedHeaders = columnsState.OrderBy(i => i.Key).Select(h => h.Value.Header.ToString()).ToArray();
             _database.SaveColumnOrdering(orderedHeaders);
 
             await _dialogCoordinator.ShowMessageAsync(DataContext, "Reorder Columns",
