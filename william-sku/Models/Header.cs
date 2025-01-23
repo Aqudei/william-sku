@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 
 namespace william_sku.Models
 {
-    internal class Header
+    public class Header
     {
         public bool IsSelected { get; set; }
-        public string Name { get; set; }
-        public string Display { get; set; }
+        public string? Name { get; set; }
+        public string? Display { get; set; }
         public bool Required { get; set; } = false;
         public bool Range { get; set; } = false;
+
+        public int OrderIndex { get; set; }
     }
 }

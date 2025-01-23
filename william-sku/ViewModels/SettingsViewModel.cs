@@ -1,137 +1,147 @@
-﻿using NLog;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
+using NLog;
 using william_sku.Data;
 using william_sku.Models;
 
-namespace william_sku.ViewModels
+namespace william_sku.ViewModels;
+
+internal class SettingsViewModel : BindableBase, INavigationAware
 {
-    internal class SettingsViewModel : BindableBase, INavigationAware
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
+    private readonly Database _database;
+    private readonly IRegionManager _regionManager;
+
+    private DelegateCommand? _goBackCommand;
+    private string? _newHeaderDisplay = string.Empty;
+    private bool _newHeaderIsRange;
+    private bool _newHeaderIsRequired;
+    private string? _newHeaderName;
+
+    private DelegateCommand? _removeSelectedHeadersCommand;
+
+    private DelegateCommand? _saveHeaderCommand;
+
+    public SettingsViewModel(Database database, IRegionManager regionManager)
     {
-        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+        _database = database;
+        _regionManager = regionManager;
 
-        private readonly Database _database;
-        private readonly IRegionManager _regionManager;
-        private string _newHeaderName;
-        private string _newHeaderDisplay;
-        private bool _newHeaderIsRange;
-        private bool _newHeaderIsRequired;
+        PropertyChanged += SettingsViewModel_PropertyChanged;
+    }
 
-        public ObservableCollection<Header> Headers { get; set; } = new();
+    public ObservableCollection<Header> Headers { get; set; } = new();
 
-        public string NewHeaderName { get => _newHeaderName; set => SetProperty(ref _newHeaderName, value); }
-        public string NewHeaderDisplay { get => _newHeaderDisplay; set => SetProperty(ref _newHeaderDisplay, value); }
-        public bool NewHeaderIsRange { get => _newHeaderIsRange; set => SetProperty(ref _newHeaderIsRange, value); }
-        public bool NewHeaderIsRequired { get => _newHeaderIsRequired; set => SetProperty(ref _newHeaderIsRequired, value); }
+    public string? NewHeaderName
+    {
+        get => _newHeaderName;
+        set => SetProperty(ref _newHeaderName, value);
+    }
 
-        private DelegateCommand _removeSelectedHeadersCommand;
+    public string? NewHeaderDisplay
+    {
+        get => _newHeaderDisplay;
+        set => SetProperty(ref _newHeaderDisplay, value);
+    }
 
-        public DelegateCommand RemoveSelectedHeadersCommand
+    public bool NewHeaderIsRange
+    {
+        get => _newHeaderIsRange;
+        set => SetProperty(ref _newHeaderIsRange, value);
+    }
+
+    public bool NewHeaderIsRequired
+    {
+        get => _newHeaderIsRequired;
+        set => SetProperty(ref _newHeaderIsRequired, value);
+    }
+
+    public DelegateCommand RemoveSelectedHeadersCommand
+    {
+        get { return _removeSelectedHeadersCommand ??= new DelegateCommand(OnRemoveSelectedHeader); }
+    }
+
+    public DelegateCommand SaveHeaderCommand
+    {
+        get { return _saveHeaderCommand ??= new DelegateCommand(OnSaveNewHeader); }
+    }
+
+    public DelegateCommand GoBackCommand
+    {
+        get { return _goBackCommand ??= new DelegateCommand(OnGoBack); }
+    }
+
+    public void OnNavigatedTo(NavigationContext navigationContext)
+    {
+        Task.Run(FetchHeaders);
+    }
+
+    public bool IsNavigationTarget(NavigationContext navigationContext)
+    {
+        return true;
+    }
+
+    public void OnNavigatedFrom(NavigationContext navigationContext)
+    {
+    }
+
+    private async void OnRemoveSelectedHeader()
+    {
+        try
         {
-            get { return _removeSelectedHeadersCommand ??= new DelegateCommand(OnRemoveSelectedHeader); }
+            var selected = Headers.Where(h => h is { IsSelected: true, Required: false });
+
+            foreach (var header in selected) _database.DeleteHeader(header);
+
+            await FetchHeaders();
         }
-
-        private async void OnRemoveSelectedHeader()
+        catch (Exception e)
         {
-            try
+            Logger.Error(e);
+        }
+    }
+
+    private void OnGoBack()
+    {
+        _regionManager.RequestNavigate("MainRegion", "Data");
+    }
+
+    private async void OnSaveNewHeader()
+    {
+        try
+        {
+            var newHeader = new Header
             {
-                var selected = Headers.Where(h => h.IsSelected && !h.Required);
+                Display = NewHeaderDisplay,
+                Name = NewHeaderName,
+                Range = NewHeaderIsRange,
+                Required = NewHeaderIsRequired
+            };
 
-                foreach (var header in selected)
-                {
-                    _database.DeleteHeader(header);
-                }
-
-                await FetchHeaders();
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
+            _database.SaveNewHeader(newHeader);
+            await FetchHeaders();
         }
-
-        private DelegateCommand _saveHeaderCommand;
-
-        public DelegateCommand SaveHeaderCommand
+        catch (Exception e)
         {
-            get { return _saveHeaderCommand ??= new DelegateCommand(OnSaveNewHeader); }
+            Logger.Error(e);
         }
+    }
 
-        private DelegateCommand _goBackCommand;
+    private async Task FetchHeaders()
+    {
+        var headers = _database.ListHeaders().ToArray();
 
-        public DelegateCommand GoBackCommand
+        await Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            get { return _goBackCommand ??= new DelegateCommand(OnGoBack); }
-        }
+            Headers.Clear();
+            Headers.AddRange(headers);
+        });
+    }
 
-        private void OnGoBack()
-        {
-            var canGoBack = _regionManager.Regions["MainRegion"].NavigationService.Journal.CanGoBack;
-
-            _regionManager.RequestNavigate("MainRegion", "Data");
-        }
-
-        private async void OnSaveNewHeader()
-        {
-            try
-            {
-                var newHeader = new Header
-                {
-                    Display = NewHeaderDisplay,
-                    Name = NewHeaderName,
-                    Range = NewHeaderIsRange,
-                    Required = NewHeaderIsRequired,
-                };
-
-                _database.SaveNewHeader(newHeader);
-                await FetchHeaders();
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
-        }
-
-        private async Task FetchHeaders()
-        {
-            var headers = _database.ListHeaders().ToArray();
-
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                Headers.Clear();
-                Headers.AddRange(headers);
-            });
-        }
-
-        public void OnNavigatedTo(NavigationContext navigationContext)
-        {
-            Task.Run(FetchHeaders);
-        }
-
-        public bool IsNavigationTarget(NavigationContext navigationContext) => true;
-
-        public void OnNavigatedFrom(NavigationContext navigationContext)
-        { }
-
-        public SettingsViewModel(Database database, IRegionManager regionManager)
-        {
-            _database = database;
-            _regionManager = regionManager;
-
-            PropertyChanged += SettingsViewModel_PropertyChanged;
-        }
-
-        private void SettingsViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            if (nameof(NewHeaderDisplay) == e.PropertyName)
-            {
-                NewHeaderName = NewHeaderDisplay.Replace(" ", "");
-            }
-        }
+    private void SettingsViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (nameof(NewHeaderDisplay) == e.PropertyName) NewHeaderName = NewHeaderDisplay.Replace(" ", "");
     }
 }
