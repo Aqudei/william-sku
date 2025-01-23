@@ -1,17 +1,9 @@
-﻿using Microsoft.Data.Sqlite;
-using NLog;
-using System;
-using System.Collections.Generic;
-using System.Data;
+﻿using System.Data;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Reflection.PortableExecutable;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Controls;
+using Microsoft.Data.Sqlite;
+using NLog;
 using william_sku.Models;
-using static OfficeOpenXml.ExcelErrorValue;
 
 namespace william_sku.Data;
 
@@ -245,7 +237,7 @@ public class Database
     {
         try
         {
-            var ignoredColumns = new List<string>() { "MCNumber", "AddedDate", "LastUpdate" };
+            var ignoredColumns = new List<string> { "MCNumber", "AddedDate", "LastUpdate" };
             var headers = ListHeaders().Select(h => h.Name).Where(h => !ignoredColumns.Contains(h)).ToList();
             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers)
                 .ToHashSet();
@@ -278,11 +270,11 @@ public class Database
             using var connection = GetOpenConnection();
 
             using var command = new SqliteCommand(insertOrUpdateQuery, connection);
-            command.Parameters.AddWithValue($"@MCNumber", mcNum);
+            command.Parameters.AddWithValue("@MCNumber", mcNum);
             if (exist)
-                command.Parameters.AddWithValue($"@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+                command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
             else
-                command.Parameters.AddWithValue($"@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+                command.Parameters.AddWithValue("@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
             foreach (var workingColumn in workingColumns)
                 if (!command.Parameters.Contains($"@{workingColumn}"))
@@ -451,7 +443,7 @@ public class Database
     {
         try
         {
-            var ignoredColumns = new List<string>() { "MCNumber", "AddedDate", "LastUpdate" };
+            var ignoredColumns = new List<string> { "MCNumber", "AddedDate", "LastUpdate" };
             var headers = ListHeaders().Select(h => h.Name).Where(h => !ignoredColumns.Contains(h)).ToArray();
             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers)
                 .ToHashSet();
@@ -462,19 +454,21 @@ public class Database
                 return;
 
             workingColumns.Add("LastUpdate");
-            updateQuery = @$" 
-                UPDATE MCRecords SET 
-                    {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
-                WHERE MCNumber=@MCNumber;
-            ";
+            updateQuery = $"""
+                            
+                                           UPDATE MCRecords SET 
+                                               {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
+                                           WHERE MCNumber=@MCNumber;
+                                       
+                           """;
 
             Debug.WriteLine(updateQuery);
 
             using var connection = GetOpenConnection();
             using var command = new SqliteCommand(updateQuery, connection);
 
-            command.Parameters.AddWithValue($"@MCNumber", mcNum);
-            command.Parameters.AddWithValue($"@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@MCNumber", mcNum);
+            command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
             foreach (var workingColumn in workingColumns)
                 if (!command.Parameters.Contains($"@{workingColumn}"))
