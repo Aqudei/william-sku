@@ -27,6 +27,7 @@ internal class DataViewModel : BindableBase
     private DataTable _items = new();
     private DelegateCommand? _searchCommand;
     private DelegateCommand? _settingsCommand;
+    private DelegateCommand? _updateOnlyCommand;
 
     public DataViewModel(Database database, IDialogService dialogService, IDialogCoordinator dialogCoordinator,
         IRegionManager regionManager)
@@ -43,7 +44,7 @@ internal class DataViewModel : BindableBase
         get => _items;
         set => SetProperty(ref _items, value);
     }
-    
+
     public DelegateCommand SearchCommand => _searchCommand ??= new DelegateCommand(OnSearch);
 
     public DelegateCommand ExportCommand
@@ -158,6 +159,54 @@ internal class DataViewModel : BindableBase
         {
             await progress.CloseAsync();
         }
+    }
+
+    public DelegateCommand UpdateOnlyCommand
+    {
+        get { return _updateOnlyCommand ??= new DelegateCommand(OnUpdateOnly); }
+    }
+
+    private void OnUpdateOnly()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Excel / CSV Files (*.xlsx;*.csv)|*.xlsx;*.csv"
+        };
+
+        var result = dialog.ShowDialog();
+        if (result.HasValue && result.Value)
+            Task.Run(async () =>
+            {
+                var headers = _database.ListHeaders().ToArray();
+
+                var progress =
+                    await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Updating from: {dialog.FileName}");
+                try
+                {
+                    var dataTable = Utils.WorksheetToDataTable(dialog.FileName, headers);
+                    if (dataTable is { Rows.Count: > 0 })
+                        for (var index = 0; index < dataTable.Rows.Count; index++)
+                        {
+                            var percentage = (double)index / dataTable.Rows.Count;
+                            progress.SetProgress(percentage);
+
+                            var row = dataTable.Rows[index];
+                            var mcNum = row.Field<string>("MCNumber");
+                            _database.UpdateOnly(mcNum, row);
+                        }
+
+                    await LoadItems();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex);
+                    await _dialogCoordinator.ShowMessageAsync(this, "Import Error", ex.Message);
+                }
+                finally
+                {
+                    await progress.CloseAsync();
+                }
+            });
     }
 
     private async void OnExport()
