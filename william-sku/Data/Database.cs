@@ -448,16 +448,19 @@ public class Database
         return dataTable;
     }
 
-    public void SaveColumnOrdering(string[]? orderedHeaders)
+    public void SaveColumnOrdering(IEnumerable<string> orderedHeaders)
     {
         using var connection = GetOpenConnection();
+        var orderedHeadersArray = orderedHeaders.ToArray();
 
-        for (var i = 0; i < orderedHeaders?.Length; i++)
+        for (var i = 0; i < orderedHeadersArray.Length; i++)
         {
+            var header = orderedHeadersArray[i];
+
             var commandText = "UPDATE Headers SET OrderIndex=@OrderIndex WHERE Name=@Name";
             var command = new SqliteCommand(commandText, connection);
             command.Parameters.AddWithValue("@OrderIndex", i);
-            command.Parameters.AddWithValue("@Name", orderedHeaders[i]);
+            command.Parameters.AddWithValue("@Name", header);
             Debug.WriteLine($"Affected: {command.ExecuteNonQuery()}");
         }
 
