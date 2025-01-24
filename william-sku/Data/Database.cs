@@ -349,7 +349,8 @@ public class Database
                 Display = reader.GetString("Display"),
                 Range = reader.GetBoolean("Range"),
                 Required = reader.GetBoolean("Required"),
-                OrderIndex = reader.GetInt32("OrderIndex")
+                OrderIndex = reader.GetInt32("OrderIndex"),
+                Id = reader.GetInt32("Id"),
             };
 
         reader.Close();
@@ -389,10 +390,10 @@ public class Database
     {
         var exist = header.Id > 0;
 
-        using var connection = GetOpenConnection();
-        using var transaction = connection?.BeginTransaction();
         if (!exist)
         {
+            using var connection = GetOpenConnection();
+            using var transaction = connection?.BeginTransaction();
             var insertCommandText =
                 "INSERT INTO Headers (Name,Display,Range,Required,OrderIndex) VALUES (@Name,@Display,@Range,@Required,@OrderIndex)";
             var insertCommand = new SqliteCommand(insertCommandText, connection, transaction);
@@ -407,11 +408,15 @@ public class Database
             var alterCommandText = $"ALTER TABLE MCRecords ADD COLUMN {header.Name} TEXT";
             var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
             alterCommand.ExecuteNonQuery();
+            transaction?.Commit();
+            connection?.Close();
         }
         else
         {
             var dbHeader = GetHeader(header.Id);
 
+            using var connection = GetOpenConnection();
+            using var transaction = connection?.BeginTransaction();
             var updateCommandText = """
                                     UPDATE Headers 
                                     SET Name=@Name,Display=@Display,Range=@Range,Required=@Required
@@ -422,15 +427,15 @@ public class Database
             updateCommand.Parameters.AddWithValue("@Display", header.Display);
             updateCommand.Parameters.AddWithValue("@Range", header.Range);
             updateCommand.Parameters.AddWithValue("@Required", header.Required);
+            updateCommand.Parameters.AddWithValue("@Id", header.Id);
             updateCommand.ExecuteNonQuery();
 
             var alterCommandText = $"ALTER TABLE MCRecords RENAME COLUMN {dbHeader.Name} TO {header.Name}";
             var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
             alterCommand.ExecuteNonQuery();
+            transaction?.Commit();
+            connection?.Close();
         }
-
-        transaction?.Commit();
-        connection?.Close();
     }
 
 
