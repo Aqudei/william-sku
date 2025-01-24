@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
+using MahApps.Metro.Controls.Dialogs;
 using NLog;
 using william_sku.Data;
 using william_sku.Models;
@@ -13,6 +14,7 @@ internal class SettingsViewModel : BindableBase, INavigationAware
 
     private readonly Database _database;
     private readonly IRegionManager _regionManager;
+    private readonly IDialogCoordinator _dialogCoordinator;
 
     private DelegateCommand? _goBackCommand;
     private string? _newHeaderDisplay = string.Empty;
@@ -20,14 +22,23 @@ internal class SettingsViewModel : BindableBase, INavigationAware
     private bool _newHeaderIsRequired;
     private string? _newHeaderName;
 
+    public Header? SelectedHeader
+    {
+        get => _selectedHeader;
+        set => SetProperty(ref _selectedHeader, value);
+    }
+
     private DelegateCommand? _removeSelectedHeadersCommand;
 
     private DelegateCommand? _saveHeaderCommand;
+    private Header? _selectedHeader;
+    private int _newHeaderId;
 
-    public SettingsViewModel(Database database, IRegionManager regionManager)
+    public SettingsViewModel(Database database, IRegionManager regionManager, IDialogCoordinator dialogCoordinator)
     {
         _database = database;
         _regionManager = regionManager;
+        _dialogCoordinator = dialogCoordinator;
 
         PropertyChanged += SettingsViewModel_PropertyChanged;
     }
@@ -65,7 +76,7 @@ internal class SettingsViewModel : BindableBase, INavigationAware
 
     public DelegateCommand SaveHeaderCommand
     {
-        get { return _saveHeaderCommand ??= new DelegateCommand(OnSaveNewHeader); }
+        get { return _saveHeaderCommand ??= new DelegateCommand(OnSaveHeader); }
     }
 
     public DelegateCommand GoBackCommand
@@ -91,7 +102,11 @@ internal class SettingsViewModel : BindableBase, INavigationAware
     {
         try
         {
-            var selected = Headers.Where(h => h is { IsSelected: true, Required: false });
+            var selected = Headers.Where(h => h is { IsSelected: true, Required: false }).ToArray();
+            var prompt = await _dialogCoordinator.ShowMessageAsync(this, "Confirm Delete",
+                $"Are you sure you want to delete the following columns?\n\n{string.Join(',', selected.Select(s => s.Display))}", MessageDialogStyle.AffirmativeAndNegative);
+            if (prompt == MessageDialogResult.Negative)
+                return;
 
             foreach (var header in selected) _database.DeleteHeader(header);
 
@@ -108,19 +123,20 @@ internal class SettingsViewModel : BindableBase, INavigationAware
         _regionManager.RequestNavigate("MainRegion", "Data");
     }
 
-    private async void OnSaveNewHeader()
+    private async void OnSaveHeader()
     {
         try
         {
-            var newHeader = new Header
+            var headerInfo = new Header
             {
                 Display = NewHeaderDisplay,
                 Name = NewHeaderName,
                 Range = NewHeaderIsRange,
-                Required = NewHeaderIsRequired
+                Required = NewHeaderIsRequired,
+                Id = NewHeaderId
             };
 
-            _database.SaveNewHeader(newHeader);
+            _database.SaveHeader(headerInfo);
             await FetchHeaders();
         }
         catch (Exception e)
@@ -142,6 +158,29 @@ internal class SettingsViewModel : BindableBase, INavigationAware
 
     private void SettingsViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (nameof(NewHeaderDisplay) == e.PropertyName) NewHeaderName = NewHeaderDisplay.Replace(" ", "");
+        switch (e.PropertyName)
+        {
+            case nameof(NewHeaderDisplay):
+                NewHeaderName = NewHeaderDisplay.Replace(" ", "").Replace("#","Number");
+                break;
+            case nameof(SelectedHeader):
+                {
+                    if (SelectedHeader != null)
+                    {
+                        NewHeaderDisplay = SelectedHeader.Display;
+                        NewHeaderName = SelectedHeader.Name;
+                        NewHeaderIsRange = SelectedHeader.Range;
+                        NewHeaderIsRequired = SelectedHeader.Required;
+                        NewHeaderId = SelectedHeader.Id;
+                    }
+                }
+                break;
+        }
+    }
+
+    public int NewHeaderId
+    {
+        get => _newHeaderId;
+        set => SetProperty(ref _newHeaderId, value);
     }
 }

@@ -28,30 +28,8 @@ public class Database
 
         if (!File.Exists(dbPath))
             CreateTables();
-
-        PatchDatabase();
     }
 
-    private void PatchDatabase()
-    {
-        using var connection = GetOpenConnection();
-
-        var commandText = "SELECT * FROM Headers";
-        using var command = new SqliteCommand(commandText, connection);
-        using var rdr = command.ExecuteReader();
-
-        var colSchema = rdr.GetColumnSchema();
-        if (!colSchema.Select(c => c.ColumnName).Contains("OrderIndex"))
-        {
-            rdr.Close();
-
-            var alterCommandText = $"ALTER TABLE Headers ADD COLUMN OrderIndex INTEGER DEFAULT 0";
-            var alterCommand = new SqliteCommand(alterCommandText, connection);
-            alterCommand.ExecuteNonQuery();
-        }
-
-        connection?.Close();
-    }
 
     private void CreateTables()
     {
@@ -98,7 +76,8 @@ public class Database
 
         var createTableQuery = @"
                 CREATE TABLE IF NOT EXISTS Headers (
-                    Name TEXT PRIMARY KEY,              
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT
+                    Name TEXT,              
                     Display TEXT,              
                     Required INTEGER NOT NULL CHECK (Required IN (0, 1)),
                     Range INTEGER NOT NULL CHECK (Range IN (0, 1)),
@@ -242,7 +221,7 @@ public class Database
         connection?.Close();
     }
 
-    public bool CheckExist(string mcNumber)
+    public bool CheckExistItem(string mcNumber)
     {
         var findQuery = "SELECT * FROM MCRecords WHERE MCNumber=@MCNumber";
 
@@ -258,6 +237,36 @@ public class Database
         return exist;
     }
 
+    public Header? GetHeader(int headerId)
+    {
+        var findQuery = "SELECT * FROM Headers WHERE Id=@Id";
+
+        using var connection = GetOpenConnection();
+
+        using var command = new SqliteCommand(findQuery, connection);
+        command.Parameters.AddWithValue("@Id", headerId);
+        using var reader = command.ExecuteReader();
+
+        Header? ret = null;
+
+        while (reader.Read())
+        {
+            ret = new Header
+            {
+                Name = reader.GetFieldValue<string>("Name"),
+                Display = reader.GetFieldValue<string>("Display"),
+                Id = reader.GetFieldValue<int>("Id"),
+                Required = reader.GetFieldValue<bool>("Required"),
+                OrderIndex = reader.GetFieldValue<int>("OrderIndex"),
+                Range = reader.GetFieldValue<bool>("Range")
+            };
+            break;
+        }
+
+        connection?.Close();
+        return ret;
+    }
+
     public void UpdateOrCreate(string mcNum, DataRow row)
     {
         try
@@ -267,7 +276,7 @@ public class Database
             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers)
                 .ToHashSet();
 
-            var exist = CheckExist(mcNum);
+            var exist = CheckExistItem(mcNum);
             var insertOrUpdateQuery = "";
             if (exist)
             {
@@ -368,35 +377,60 @@ public class Database
     internal void Delete(object mcNum)
     {
         using var connection = GetOpenConnection();
-        ;
 
         var commandText = "DELETE FROM MCRecords WHERE MCNumber=@MCNumber";
         using var command = new SqliteCommand(commandText, connection);
         command.Parameters.AddWithValue("@MCNumber", mcNum);
         var affected = command.ExecuteNonQuery();
-        connection.Close();
+        connection?.Close();
     }
 
-    internal void SaveNewHeader(Header newHeader)
+    internal void SaveHeader(Header header)
     {
+        var exist = header.Id > 0;
+
         using var connection = GetOpenConnection();
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection?.BeginTransaction();
+        if (!exist)
+        {
+            var insertCommandText =
+                "INSERT INTO Headers (Name,Display,Range,Required,OrderIndex) VALUES (@Name,@Display,@Range,@Required,@OrderIndex)";
+            var insertCommand = new SqliteCommand(insertCommandText, connection, transaction);
+            insertCommand.Parameters.AddWithValue("@Name", header.Name);
+            insertCommand.Parameters.AddWithValue("@Display", header.Display);
+            insertCommand.Parameters.AddWithValue("@Range", header.Range);
+            insertCommand.Parameters.AddWithValue("@Required", header.Required);
+            insertCommand.Parameters.AddWithValue("@OrderIndex", 1000);
 
-        var insertCommandText =
-            "INSERT INTO Headers (Name,Display,Range,Required) VALUES (@Name,@Display,@Range,@Required)";
-        var insertCommand = new SqliteCommand(insertCommandText, connection, transaction);
-        insertCommand.Parameters.AddWithValue("@Name", newHeader.Name);
-        insertCommand.Parameters.AddWithValue("@Display", newHeader.Display);
-        insertCommand.Parameters.AddWithValue("@Range", newHeader.Range);
-        insertCommand.Parameters.AddWithValue("@Required", newHeader.Required);
-        insertCommand.ExecuteNonQuery();
+            insertCommand.ExecuteNonQuery();
 
-        var alterCommandText = $"ALTER TABLE MCRecords ADD COLUMN {newHeader.Name} TEXT";
-        var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
-        alterCommand.ExecuteNonQuery();
+            var alterCommandText = $"ALTER TABLE MCRecords ADD COLUMN {header.Name} TEXT";
+            var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
+            alterCommand.ExecuteNonQuery();
+        }
+        else
+        {
+            var dbHeader = GetHeader(header.Id);
 
-        transaction.Commit();
-        connection.Close();
+            var updateCommandText = """
+                                    UPDATE Headers 
+                                    SET Name=@Name,Display=@Display,Range=@Range,Required=@Required
+                                    WHERE Id=@Id
+                                    """;
+            var updateCommand = new SqliteCommand(updateCommandText, connection, transaction);
+            updateCommand.Parameters.AddWithValue("@Name", header.Name);
+            updateCommand.Parameters.AddWithValue("@Display", header.Display);
+            updateCommand.Parameters.AddWithValue("@Range", header.Range);
+            updateCommand.Parameters.AddWithValue("@Required", header.Required);
+            updateCommand.ExecuteNonQuery();
+
+            var alterCommandText = $"ALTER TABLE MCRecords RENAME COLUMN {dbHeader.Name} TO {header.Name}";
+            var alterCommand = new SqliteCommand(alterCommandText, connection, transaction);
+            alterCommand.ExecuteNonQuery();
+        }
+
+        transaction?.Commit();
+        connection?.Close();
     }
 
 
@@ -475,7 +509,7 @@ public class Database
             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers)
                 .ToHashSet();
 
-            var exist = CheckExist(mcNum);
+            var exist = CheckExistItem(mcNum);
             var updateQuery = "";
             if (!exist)
                 return;
