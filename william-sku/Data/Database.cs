@@ -11,7 +11,7 @@ namespace william_sku.Data;
 
 public class Database
 {
-    public const string PRIMARY_KEY = "USDotNumber";
+    public const string PRIMARY_KEY = "DOT";
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -96,15 +96,15 @@ public class Database
         {
             new()
             {
-                Name = "MCNumber",
-                Display = "MC#",
+                Name = "MC",
+                Display = "MC",
                 Range = true,
                 Required = true
             },
             new()
             {
-                Name = "Status",
-                Display = "Status",
+                Name = "STATUS",
+                Display = "STATUS",
                 Range = false,
                 Required = false
             },
