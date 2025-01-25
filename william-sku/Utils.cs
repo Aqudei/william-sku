@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using william_sku.Data;
 using william_sku.Models;
 
 namespace william_sku
@@ -127,9 +128,8 @@ namespace william_sku
 
         public static DataTable WorksheetToDataTable(string filename, IEnumerable<Header> headers)
         {
-            if(Path.GetExtension(filename).ToUpper().EndsWith(".CSV"))
+            if (Path.GetExtension(filename).ToUpper().EndsWith(".CSV"))
                 return CsvToDataTable(filename, headers);
-
 
 
             var colMapping = headers.ToDictionary(h => h.Display);
@@ -146,41 +146,38 @@ namespace william_sku
 
             // Add columns to DataTable
             int startRow = 2;
-            var dateColumns = new List<int>();
+            var skippedColumns = new List<int>();
             for (int col = 1; col <= columns; col++)
             {
                 var columnName = worksheet.Cells[1, col].Text;
-
-                if (!colMapping.ContainsKey(columnName))
-                    continue;
-
-                var headerColumn = colMapping[columnName];
-                var databaseColumnName = headerColumn.Name;
-
-                if (databaseColumnName == "AddedDate" || databaseColumnName == "LastUpdate")
+                if (colMapping.TryGetValue(columnName, out var headerObj))
                 {
-                    dateColumns.Add(col);
+                    var dbColumnName = headerObj.Name;
+                    var dataColumn = dataTable.Columns.Add(dbColumnName);
+                    dataColumn.Caption = headerObj?.Display;
                 }
-
-                var dataColumn = dataTable.Columns.Add(databaseColumnName);
-                dataColumn.Caption = headerColumn.Display;
+                else
+                {
+                    skippedColumns.Add(col);
+                }
             }
 
             // Add rows to DataTable
             for (int row = startRow; row <= rows; row++)
             {
                 var dataRow = dataTable.NewRow();
+                var currentCol = 1;
+
                 for (int col = 1; col <= columns; col++)
                 {
-                    var value = worksheet.Cells[row, col].Text;
-                    if (dateColumns.Count > 0 && dateColumns.Contains(col))
-                    {
-                        if (DateOnly.TryParse(value, out var dateValue))
-                            value = dateValue.ToString("yyyy-MM-dd");
-                    }
+                    if (skippedColumns.Contains(col))
+                        continue;
 
-                    dataRow[col - 1] = value;
+                    var value = worksheet.Cells[row, col].Text;
+                    dataRow[currentCol - 1] = value;
+                    currentCol++;
                 }
+
                 dataTable.Rows.Add(dataRow);
             }
 

@@ -93,7 +93,7 @@ internal class DataViewModel : BindableBase
                 // Filter by SelectedRangeField if applicable
                 if (!string.IsNullOrEmpty(data.SelectedRangeField))
                 {
-                    if (data.SelectedRangeField is "AddedDate" or "LastUpdate")
+                    if (data.SelectedRangeField is Database.TIMESTAMP_ADDED or Database.TIMESTAMP_UPDATED)
                     {
                         result2 = _database
                             .ListItemsBetweenDatesAsDataTable(data.SelectedRangeField, data.SearchFrom, data.SearchTo)
@@ -177,7 +177,7 @@ internal class DataViewModel : BindableBase
         if (result.HasValue && result.Value)
             Task.Run(async () =>
             {
-                var headers = _database.ListHeaders().ToArray();
+                var headers = _database.ListHeaders().Where(h=>h.Name!=Database.TIMESTAMP_UPDATED && h.Name != Database.TIMESTAMP_ADDED).ToArray();
                 var headerNames = headers.Select(x => x.Name);
 
                 var progress =
@@ -194,7 +194,7 @@ internal class DataViewModel : BindableBase
                             var row = dataTable.Rows[index];
                             var pkValue = row.Field<string>(Database.PRIMARY_KEY);
 
-                            var ignoredColumns = new List<string> { Database.PRIMARY_KEY, "AddedDate", "LastUpdate" };
+                            var ignoredColumns = new List<string> { Database.PRIMARY_KEY, Database.TIMESTAMP_ADDED, Database.TIMESTAMP_UPDATED };
                             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headerNames);
 
                             try
@@ -326,7 +326,7 @@ internal class DataViewModel : BindableBase
         if (result.HasValue && result.Value)
             Task.Run(async () =>
             {
-                var headers = _database.ListHeaders().ToArray();
+                var headers = _database.ListHeaders().Where(h => h.Name != Database.TIMESTAMP_UPDATED && h.Name != Database.TIMESTAMP_ADDED).ToArray();
                 var headerNames = headers.Select(x => x.Name);
 
                 var progress =
@@ -343,7 +343,7 @@ internal class DataViewModel : BindableBase
                             var row = dataTable.Rows[index];
                             var pkValue = row.Field<string>(Database.PRIMARY_KEY);
 
-                            var ignoredColumns = new List<string> { Database.PRIMARY_KEY, "AddedDate", "LastUpdate" };
+                            var ignoredColumns = new List<string> { Database.PRIMARY_KEY, Database.TIMESTAMP_ADDED, Database.TIMESTAMP_UPDATED };
                             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headerNames);
 
                             try

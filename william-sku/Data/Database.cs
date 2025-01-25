@@ -12,6 +12,9 @@ namespace william_sku.Data;
 public class Database
 {
     public const string PRIMARY_KEY = "DOT";
+    public const string TIMESTAMP_ADDED = "ADDED";
+    public const string TIMESTAMP_UPDATED = "UPDATED";
+
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -43,24 +46,11 @@ public class Database
     {
         using var connection = GetOpenConnection();
 
-        var createTableQuery = @"
+        var createTableQuery = $@"
                 CREATE TABLE IF NOT EXISTS MCRecords (
-                    USDOTNumber TEXT PRIMARY KEY,
-                    MCNumber TEXT,
-                    Status TEXT,
-                    EntityType TEXT,
-                    OperatingStatus TEXT,
-                    OutOfServiceDate TEXT,
-                    LegalName TEXT,
-                    DBAName TEXT,
-                    PhysicalAddress TEXT,
-                    Phone TEXT,
-                    Email TEXT,
-                    MailingAddress TEXT,
-                    PowerUnits TEXT,
-                    Drivers TEXT,
-                    AddedDate TEXT,
-                    LastUpdate TEXT
+                    {PRIMARY_KEY} TEXT PRIMARY KEY,
+                    {TIMESTAMP_ADDED} TEXT,
+                    {TIMESTAMP_UPDATED} TEXT
                 );
             ";
 
@@ -96,113 +86,22 @@ public class Database
         {
             new()
             {
-                Name = "MC",
-                Display = "MC",
+                Name = PRIMARY_KEY,
+                Display = PRIMARY_KEY,
                 Range = true,
                 Required = true
             },
             new()
             {
-                Name = "STATUS",
-                Display = "STATUS",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "EntityType",
-                Display = "Entity Type",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "OperatingStatus",
-                Display = "Operating Status",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "OutOfServiceDate",
-                Display = "Out of Service Date",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "LegalName",
-                Display = "Legal Name",
-                Range = false,
-                Required = true
-            },
-            new()
-            {
-                Name = "DBAName",
-                Display = "DBA Name",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "PhysicalAddress",
-                Display = "Physical Address",
-                Range = false,
-                Required = true
-            },
-            new()
-            {
-                Name = "Phone",
-                Display = "Phone",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "Email",
-                Display = "email",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "MailingAddress",
-                Display = "Mailing Address",
-                Range = false,
-                Required = false
-            },
-            new()
-            {
-                Name = "USDOTNumber",
-                Display = "US DOT Number",
+                Name = TIMESTAMP_ADDED,
+                Display = TIMESTAMP_ADDED,
                 Range = true,
                 Required = true
             },
             new()
             {
-                Name = "PowerUnits",
-                Display = "Power Units",
-                Range = true,
-                Required = false
-            },
-            new()
-            {
-                Name = "Drivers",
-                Display = "Drivers",
-                Range = true,
-                Required = false
-            },
-            new()
-            {
-                Name = "AddedDate",
-                Display = "added date",
-                Range = true,
-                Required = true
-            },
-            new()
-            {
-                Name = "LastUpdate",
-                Display = "last update",
+                Name = TIMESTAMP_UPDATED,
+                Display = TIMESTAMP_UPDATED,
                 Range = true,
                 Required = true
             }
@@ -277,7 +176,7 @@ public class Database
         {
             insertOrUpdateQuery = @$" 
                 UPDATE MCRecords SET 
-                    {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
+                    {TIMESTAMP_UPDATED}=@{TIMESTAMP_UPDATED},{string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
                 WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};
             ";
         }
@@ -285,9 +184,9 @@ public class Database
         {
             insertOrUpdateQuery = @$" 
                 INSERT INTO MCRecords (
-                    {PRIMARY_KEY},{string.Join(',', workingColumns)}
+                    {PRIMARY_KEY},{TIMESTAMP_ADDED},{string.Join(',', workingColumns)}
                 ) VALUES (
-                   @{PRIMARY_KEY},{string.Join(',', workingColumns.Select(h => "@" + h))}
+                   @{PRIMARY_KEY},@{TIMESTAMP_ADDED},{string.Join(',', workingColumns.Select(h => "@" + h))}
                 );
             ";
         }
@@ -297,9 +196,9 @@ public class Database
         using var command = new SqliteCommand(insertOrUpdateQuery, connection);
         command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
         if (exist)
-            command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.Date.ToString("yyyy-MM-dd"));
         else
-            command.Parameters.AddWithValue("@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue($"@{TIMESTAMP_ADDED}", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
         foreach (var workingColumn in workingColumns)
             if (!command.Parameters.Contains($"@{workingColumn}"))
@@ -498,7 +397,7 @@ public class Database
 
         updateQuery = $"""
                                 UPDATE MCRecords SET 
-                                    {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
+                                    {TIMESTAMP_UPDATED}=@{TIMESTAMP_UPDATED},{string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
                                 WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};         
                            """;
 
@@ -508,7 +407,7 @@ public class Database
         using var command = new SqliteCommand(updateQuery, connection);
 
         command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
-        command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
         foreach (var workingColumn in workingColumns)
             if (!command.Parameters.Contains($"@{workingColumn}"))
