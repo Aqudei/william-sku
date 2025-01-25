@@ -271,57 +271,48 @@ public class Database
 
     public void UpdateOrCreate(string pkValue, DataRow row, IEnumerable<string> workingColumns)
     {
-        try
+        var exist = CheckRecordExist(pkValue);
+        var insertOrUpdateQuery = "";
+        if (exist)
         {
-
-            var exist = CheckRecordExist(pkValue);
-            var insertOrUpdateQuery = "";
-            if (exist)
-            {
-                insertOrUpdateQuery = @$" 
+            insertOrUpdateQuery = @$" 
                 UPDATE MCRecords SET 
                     {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
                 WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};
             ";
-            }
-            else
-            {
-                insertOrUpdateQuery = @$" 
+        }
+        else
+        {
+            insertOrUpdateQuery = @$" 
                 INSERT INTO MCRecords (
                     {PRIMARY_KEY},{string.Join(',', workingColumns)}
                 ) VALUES (
                    @{PRIMARY_KEY},{string.Join(',', workingColumns.Select(h => "@" + h))}
                 );
             ";
+        }
+
+        using var connection = GetOpenConnection();
+
+        using var command = new SqliteCommand(insertOrUpdateQuery, connection);
+        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
+        if (exist)
+            command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+        else
+            command.Parameters.AddWithValue("@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+
+        foreach (var workingColumn in workingColumns)
+            if (!command.Parameters.Contains($"@{workingColumn}"))
+            {
+                var value = row[workingColumn];
+                if (value == null)
+                    command.Parameters.AddWithValue($"@{workingColumn}", DBNull.Value);
+                else
+                    command.Parameters.AddWithValue($"@{workingColumn}", value);
             }
 
-            using var connection = GetOpenConnection();
-
-            using var command = new SqliteCommand(insertOrUpdateQuery, connection);
-            command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
-            if (exist)
-                command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
-            else
-                command.Parameters.AddWithValue("@AddedDate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
-
-            foreach (var workingColumn in workingColumns)
-                if (!command.Parameters.Contains($"@{workingColumn}"))
-                {
-                    var value = row[workingColumn];
-                    if (value == null)
-                        command.Parameters.AddWithValue($"@{workingColumn}", DBNull.Value);
-                    else
-                        command.Parameters.AddWithValue($"@{workingColumn}", value);
-                }
-
-            var affected = command.ExecuteNonQuery();
-            connection?.Close();
-        }
-        catch (Exception e)
-        {
-            Logger.Error(e);
-            throw;
-        }
+        var affected = command.ExecuteNonQuery();
+        connection?.Close();
     }
 
     public IEnumerable<Header> ListHeaders()
@@ -500,43 +491,33 @@ public class Database
 
     public void UpdateOnly(string? pkValue, DataRow row, IEnumerable<string> workingColumns)
     {
-        try
-        {
+        var exist = CheckRecordExist(pkValue);
+        var updateQuery = "";
+        if (!exist)
+            return;
 
-
-            var exist = CheckRecordExist(pkValue);
-            var updateQuery = "";
-            if (!exist)
-                return;
-
-            updateQuery = $"""
+        updateQuery = $"""
                                 UPDATE MCRecords SET 
                                     {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
                                 WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};         
                            """;
 
-            Debug.WriteLine(updateQuery);
+        Debug.WriteLine(updateQuery);
 
-            using var connection = GetOpenConnection();
-            using var command = new SqliteCommand(updateQuery, connection);
+        using var connection = GetOpenConnection();
+        using var command = new SqliteCommand(updateQuery, connection);
 
-            command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
-            command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
+        command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
-            foreach (var workingColumn in workingColumns)
-                if (!command.Parameters.Contains($"@{workingColumn}"))
-                {
-                    var value = row.Field<object>(workingColumn);
-                    command.Parameters.AddWithValue($"@{workingColumn}", value ?? DBNull.Value);
-                }
+        foreach (var workingColumn in workingColumns)
+            if (!command.Parameters.Contains($"@{workingColumn}"))
+            {
+                var value = row.Field<object>(workingColumn);
+                command.Parameters.AddWithValue($"@{workingColumn}", value ?? DBNull.Value);
+            }
 
-            var affected = command.ExecuteNonQuery();
-            connection?.Close();
-        }
-        catch (Exception e)
-        {
-            Logger.Error(e);
-            throw;
-        }
+        var affected = command.ExecuteNonQuery();
+        connection?.Close();
     }
 }
