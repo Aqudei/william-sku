@@ -11,6 +11,8 @@ namespace william_sku.Data;
 
 public class Database
 {
+    public const string PRIMARY_KEY = "USDotNumber";
+
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
     private readonly string _connectionString;
@@ -43,7 +45,8 @@ public class Database
 
         var createTableQuery = @"
                 CREATE TABLE IF NOT EXISTS MCRecords (
-                    MCNumber TEXT PRIMARY KEY,
+                    USDOTNumber TEXT PRIMARY KEY,
+                    MCNumber TEXT,
                     Status TEXT,
                     EntityType TEXT,
                     OperatingStatus TEXT,
@@ -54,7 +57,6 @@ public class Database
                     Phone TEXT,
                     Email TEXT,
                     MailingAddress TEXT,
-                    USDOTNumber TEXT,
                     PowerUnits TEXT,
                     Drivers TEXT,
                     AddedDate TEXT,
@@ -76,7 +78,7 @@ public class Database
 
         var createTableQuery = @"
                 CREATE TABLE IF NOT EXISTS Headers (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     Name TEXT,              
                     Display TEXT,              
                     Required INTEGER NOT NULL CHECK (Required IN (0, 1)),
@@ -221,14 +223,14 @@ public class Database
         connection?.Close();
     }
 
-    public bool CheckExistItem(string mcNumber)
+    public bool CheckRecordExist(string dotNumber)
     {
-        var findQuery = "SELECT * FROM MCRecords WHERE MCNumber=@MCNumber";
+        var findQuery = $"SELECT * FROM MCRecords WHERE {PRIMARY_KEY}=@{PRIMARY_KEY}";
 
         using var connection = GetOpenConnection();
 
         using var command = new SqliteCommand(findQuery, connection);
-        command.Parameters.AddWithValue("@MCNumber", mcNumber);
+        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", dotNumber);
         using var reader = command.ExecuteReader();
 
         var exist = reader.HasRows;
@@ -267,44 +269,36 @@ public class Database
         return ret;
     }
 
-    public void UpdateOrCreate(string mcNum, DataRow row)
+    public void UpdateOrCreate(string pkValue, DataRow row, IEnumerable<string> workingColumns)
     {
         try
         {
-            var ignoredColumns = new List<string> { "MCNumber", "AddedDate", "LastUpdate" };
-            var headers = ListHeaders().Select(h => h.Name).Where(h => !ignoredColumns.Contains(h)).ToList();
-            var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers)
-                .ToHashSet();
 
-            var exist = CheckExistItem(mcNum);
+            var exist = CheckRecordExist(pkValue);
             var insertOrUpdateQuery = "";
             if (exist)
             {
-                workingColumns.Add("LastUpdate");
                 insertOrUpdateQuery = @$" 
                 UPDATE MCRecords SET 
                     {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
-                WHERE MCNumber=@MCNumber;
+                WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};
             ";
             }
             else
             {
-                workingColumns.Add("AddedDate");
                 insertOrUpdateQuery = @$" 
                 INSERT INTO MCRecords (
-                    MCNumber,{string.Join(',', workingColumns)}
+                    {PRIMARY_KEY},{string.Join(',', workingColumns)}
                 ) VALUES (
-                   @MCNumber,{string.Join(',', workingColumns.Select(h => "@" + h))}
+                   @{PRIMARY_KEY},{string.Join(',', workingColumns.Select(h => "@" + h))}
                 );
             ";
             }
 
-            Debug.WriteLine(insertOrUpdateQuery);
-
             using var connection = GetOpenConnection();
 
             using var command = new SqliteCommand(insertOrUpdateQuery, connection);
-            command.Parameters.AddWithValue("@MCNumber", mcNum);
+            command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
             if (exist)
                 command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
             else
@@ -319,10 +313,6 @@ public class Database
                     else
                         command.Parameters.AddWithValue($"@{workingColumn}", value);
                 }
-
-            Debug.WriteLine("Parameters:");
-            foreach (SqliteParameter item in command.Parameters)
-                Debug.WriteLine($"Name:{item.ParameterName}, Value:{item.Value}");
 
             var affected = command.ExecuteNonQuery();
             connection?.Close();
@@ -343,7 +333,8 @@ public class Database
         using var reader = command.ExecuteReader();
 
         while (reader.Read())
-            yield return new Header
+        {
+            var header = new Header
             {
                 Name = reader.GetString("Name"),
                 Display = reader.GetString("Display"),
@@ -352,6 +343,8 @@ public class Database
                 OrderIndex = reader.GetInt32("OrderIndex"),
                 Id = reader.GetInt32("Id"),
             };
+            yield return header;
+        }
 
         reader.Close();
         connection?.Close();
@@ -375,13 +368,13 @@ public class Database
         return dataTable;
     }
 
-    internal void Delete(object mcNum)
+    internal void Delete(object pkValue)
     {
         using var connection = GetOpenConnection();
 
-        var commandText = "DELETE FROM MCRecords WHERE MCNumber=@MCNumber";
+        var commandText = $"DELETE FROM MCRecords WHERE {PRIMARY_KEY}=@{PRIMARY_KEY}";
         using var command = new SqliteCommand(commandText, connection);
-        command.Parameters.AddWithValue("@MCNumber", mcNum);
+        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
         var affected = command.ExecuteNonQuery();
         connection?.Close();
     }
@@ -505,27 +498,21 @@ public class Database
         connection?.Close();
     }
 
-    public void UpdateOnly(string? mcNum, DataRow row)
+    public void UpdateOnly(string? pkValue, DataRow row, IEnumerable<string> workingColumns)
     {
         try
         {
-            var ignoredColumns = new List<string> { "MCNumber", "AddedDate", "LastUpdate" };
-            var headers = ListHeaders().Select(h => h.Name).Where(h => !ignoredColumns.Contains(h)).ToArray();
-            var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headers)
-                .ToHashSet();
 
-            var exist = CheckExistItem(mcNum);
+
+            var exist = CheckRecordExist(pkValue);
             var updateQuery = "";
             if (!exist)
                 return;
 
-            workingColumns.Add("LastUpdate");
             updateQuery = $"""
-                            
-                                           UPDATE MCRecords SET 
-                                               {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
-                                           WHERE MCNumber=@MCNumber;
-                                       
+                                UPDATE MCRecords SET 
+                                    {string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
+                                WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};         
                            """;
 
             Debug.WriteLine(updateQuery);
@@ -533,7 +520,7 @@ public class Database
             using var connection = GetOpenConnection();
             using var command = new SqliteCommand(updateQuery, connection);
 
-            command.Parameters.AddWithValue("@MCNumber", mcNum);
+            command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
             command.Parameters.AddWithValue("@LastUpdate", DateTime.Now.Date.ToString("yyyy-MM-dd"));
 
             foreach (var workingColumn in workingColumns)
@@ -542,10 +529,6 @@ public class Database
                     var value = row.Field<object>(workingColumn);
                     command.Parameters.AddWithValue($"@{workingColumn}", value ?? DBNull.Value);
                 }
-
-            Debug.WriteLine("Parameters:");
-            foreach (SqliteParameter item in command.Parameters)
-                Debug.WriteLine($"Name:{item.ParameterName}, Value:{item.Value}");
 
             var affected = command.ExecuteNonQuery();
             connection?.Close();

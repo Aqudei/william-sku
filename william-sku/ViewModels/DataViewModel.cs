@@ -178,6 +178,7 @@ internal class DataViewModel : BindableBase
             Task.Run(async () =>
             {
                 var headers = _database.ListHeaders().ToArray();
+                var headerNames = headers.Select(x => x.Name);
 
                 var progress =
                     await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Updating from: {dialog.FileName}");
@@ -191,8 +192,19 @@ internal class DataViewModel : BindableBase
                             progress.SetProgress(percentage);
 
                             var row = dataTable.Rows[index];
-                            var mcNum = row.Field<string>("MCNumber");
-                            _database.UpdateOnly(mcNum, row);
+                            var pkValue = row.Field<string>(Database.PRIMARY_KEY);
+
+                            var ignoredColumns = new List<string> { Database.PRIMARY_KEY, "AddedDate", "LastUpdate" };
+                            var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headerNames);
+
+                            try
+                            {
+                                _database.UpdateOnly(pkValue, row, workingColumns);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Error($"Unable to import <{pkValue}>: {ex.Message}");
+                            }
                         }
 
                     await LoadItems();
@@ -284,8 +296,8 @@ internal class DataViewModel : BindableBase
                     {
                         foreach (DataRow row in dataTable.Rows)
                         {
-                            var mcNum = row["MCNumber"];
-                            _database.Delete(mcNum);
+                            var pkValue = row[Database.PRIMARY_KEY];
+                            _database.Delete(pkValue);
                         }
 
                         await LoadItems();
@@ -315,6 +327,7 @@ internal class DataViewModel : BindableBase
             Task.Run(async () =>
             {
                 var headers = _database.ListHeaders().ToArray();
+                var headerNames = headers.Select(x => x.Name);
 
                 var progress =
                     await _dialogCoordinator.ShowProgressAsync(this, "Please wait", $"Importing {dialog.FileName}");
@@ -328,8 +341,19 @@ internal class DataViewModel : BindableBase
                             progress.SetProgress(percentage);
 
                             var row = dataTable.Rows[index];
-                            var mcNum = row.Field<string>("MCNumber");
-                            _database.UpdateOrCreate(mcNum, row);
+                            var pkValue = row.Field<string>(Database.PRIMARY_KEY);
+
+                            var ignoredColumns = new List<string> { Database.PRIMARY_KEY, "AddedDate", "LastUpdate" };
+                            var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headerNames);
+
+                            try
+                            {
+                                _database.UpdateOrCreate(pkValue, row, workingColumns);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Error($"Unable to import <{pkValue}>: {ex.Message}");
+                            }
                         }
 
                     await LoadItems();
@@ -337,6 +361,7 @@ internal class DataViewModel : BindableBase
                 catch (Exception ex)
                 {
                     Logger.Error(ex);
+                    Debug.WriteLine(ex.StackTrace);
                     await _dialogCoordinator.ShowMessageAsync(this, "Import Error", ex.Message);
                 }
                 finally
@@ -368,16 +393,14 @@ internal class DataViewModel : BindableBase
             // Check for nulls
             if (x == null || y == null) return false;
 
-            // Check if "MCNumber" exists and compare their values
-            return x["MCNumber"]?.Equals(y["MCNumber"]) == true;
+            return x[Database.PRIMARY_KEY]?.Equals(y[Database.PRIMARY_KEY]) == true;
         }
 
         public int GetHashCode([DisallowNull] DataRow obj)
         {
-            // Ensure "MCNumber" exists and return its hash code
             if (obj == null) throw new ArgumentNullException(nameof(obj));
 
-            var value = obj["MCNumber"];
+            var value = obj[Database.PRIMARY_KEY];
 
             return value.GetHashCode();
         }
