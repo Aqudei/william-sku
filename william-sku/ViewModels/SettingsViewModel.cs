@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
+using System.Xml.Linq;
 using MahApps.Metro.Controls.Dialogs;
 using NLog;
 using william_sku.Data;
@@ -122,6 +123,20 @@ internal class SettingsViewModel : BindableBase, INavigationAware
     {
         _regionManager.RequestNavigate("MainRegion", "Data");
     }
+    private DelegateCommand _newHeaderCommand;
+
+    public DelegateCommand NewHeaderCommand
+    {
+        get { return _newHeaderCommand ??= new DelegateCommand(OnNewHeader); }
+    }
+
+    private void OnNewHeader()
+    {
+        NewHeaderDisplay = NewHeaderName = "";
+        NewHeaderIsRange = false;
+        NewHeaderIsRequired = false;
+        NewHeaderId = 0;
+    }
 
     private async void OnSaveHeader()
     {
@@ -138,10 +153,14 @@ internal class SettingsViewModel : BindableBase, INavigationAware
 
             _database.SaveHeader(headerInfo);
             await FetchHeaders();
+
+            var message = await _dialogCoordinator.ShowMessageAsync(this, "Success", "Header info saved!");
+
         }
         catch (Exception e)
         {
             Logger.Error(e);
+            var message = await _dialogCoordinator.ShowMessageAsync(this, "Error", $"Something went wrong.\n\n{e.Message}");
         }
     }
 
@@ -161,7 +180,7 @@ internal class SettingsViewModel : BindableBase, INavigationAware
         switch (e.PropertyName)
         {
             case nameof(NewHeaderDisplay):
-                NewHeaderName = NewHeaderDisplay.Replace(" ", "").Replace("#","Number");
+                NewHeaderName = NewHeaderDisplay.Replace(" ", "").Replace("#", "Number");
                 break;
             case nameof(SelectedHeader):
                 {

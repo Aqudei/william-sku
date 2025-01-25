@@ -3,6 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             mah:DialogParticipation.Register="{Binding}"
              xmlns:local="clr-namespace:william_sku.Views"
              mc:Ignorable="d" d:DesignHeight="484" d:DesignWidth="998.997" >
     <Grid>
@@ -60,12 +62,16 @@
                     <CheckBox Margin="2" IsChecked="{Binding NewHeaderIsRange}">Is Range:</CheckBox>
                     <CheckBox Margin="2" IsChecked="{Binding NewHeaderIsRequired}">Is Required:</CheckBox>
                 </StackPanel>
-                <Button Content="Save" 
-                        Command="{Binding SaveHeaderCommand}"
+                <Button Content="New Header" 
+                        Command="{Binding NewHeaderCommand}"
                         Margin="5"/>
+                <Button Content="Save" 
+                        Margin="5"
+                        Command="{Binding SaveHeaderCommand}"/>
             </StackPanel>
         </GroupBox>
         <Button Grid.Row="2" 
+                Margin="2"
                 Width="150"
                 Content="Back"
                 HorizontalAlignment="Left"
