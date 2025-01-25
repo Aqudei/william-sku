@@ -8,13 +8,12 @@ namespace william_sku.Models
 {
     public class Header
     {
-        public int Id { get; set; }
         public bool IsSelected { get; set; }
         public string? Name { get; set; }
         public string? Display { get; set; }
         public bool Required { get; set; } = false;
         public bool Range { get; set; } = false;
-
         public int OrderIndex { get; set; }
+        public int Id { get; set; }
     }
 }
