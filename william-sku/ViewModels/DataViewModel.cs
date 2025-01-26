@@ -387,16 +387,26 @@ internal class DataViewModel : BindableBase
 
     private async Task LoadItems()
     {
+        var progress = await _dialogCoordinator.ShowProgressAsync(this, "Load Items", "Please wait while loading items from database.");
+        progress.SetIndeterminate();
+
         try
         {
-            Items.Clear();
             var dt = _database.ListItemsAsDataTable();
-            Debug.WriteLine($"Loaded a total of '{dt.Rows.Count}' items");
-            await Application.Current.Dispatcher.InvokeAsync(() => { Items = dt; });
+
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                Items.Clear();
+                Items = dt;
+            });
         }
         catch (Exception ex)
         {
             Logger.Error(ex);
+        }
+        finally
+        {
+            await progress.CloseAsync();
         }
     }
 
