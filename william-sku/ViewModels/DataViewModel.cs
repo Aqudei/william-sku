@@ -177,7 +177,7 @@ internal class DataViewModel : BindableBase
         if (result.HasValue && result.Value)
             Task.Run(async () =>
             {
-                var headers = _database.ListHeaders().Where(h=>h.Name!=Database.TIMESTAMP_UPDATED && h.Name != Database.TIMESTAMP_ADDED).ToArray();
+                var headers = _database.ListHeaders().Where(h => h.Name != Database.TIMESTAMP_UPDATED && h.Name != Database.TIMESTAMP_ADDED).ToArray();
                 var headerNames = headers.Select(x => x.Name);
 
                 var progress =
@@ -287,18 +287,32 @@ internal class DataViewModel : BindableBase
 
                 var progress = await _dialogCoordinator.ShowProgressAsync(this,
                     "Please wait", $"Deleting bulk based on MC# from {dialog.FileName}");
-                progress.SetIndeterminate();
                 try
                 {
                     var dataTable = Utils.WorksheetToDataTable(dialog.FileName, headers);
 
                     if (dataTable.Rows.Count > 0)
                     {
-                        foreach (DataRow row in dataTable.Rows)
+                        var batchSize = 32;
+                        var batches = dataTable.Rows.Cast<DataRow>()
+                          .Select((row, index) => new { row, index })
+                          .GroupBy(x => x.index / batchSize)
+                          .Select(g => g.Select(x => x.row));
+
+                        var page = 0;
+                        var totalPage = batches.Count();
+                        foreach (var batch in batches)
                         {
-                            var pkValue = row[Database.PRIMARY_KEY];
-                            _database.Delete(pkValue);
+                            progress.SetProgress(page++ / (double)totalPage);
+                            var pkValues = batch.Select(r => r[Database.PRIMARY_KEY]).ToArray();
+                            _database.Delete(pkValues);
                         }
+
+                        //foreach (DataRow row in dataTable.Rows)
+                        //{
+                        //    var pkValue = row[Database.PRIMARY_KEY];
+                        //    _database.Delete(pkValue);
+                        //}
 
                         await LoadItems();
                     }

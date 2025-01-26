@@ -30,7 +30,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition/>
                 </Grid.RowDefinitions>
-                <Label>Column List</Label>
+                <Label FontWeight="Bold">Column List</Label>
                 <ListBox ItemsSource="{Binding Headers}"
                          Margin="2"
                          Grid.Row="1"

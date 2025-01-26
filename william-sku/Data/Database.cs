@@ -258,7 +258,28 @@ public class Database
         return dataTable;
     }
 
-    internal void Delete(object pkValue)
+
+    public void Delete(object[] pkValues)
+    {
+        using var connection = GetOpenConnection();
+
+        // Dynamically create placeholders for each primary key value
+        var placeholders = string.Join(", ", pkValues.Select((_, index) => $"@pk{index}"));
+        var commandText = $"DELETE FROM MCRecords WHERE {PRIMARY_KEY} IN ({placeholders})";
+
+        using var command = new SqliteCommand(commandText, connection);
+
+        // Add parameters for each primary key value
+        for (int i = 0; i < pkValues.Length; i++)
+        {
+            command.Parameters.AddWithValue($"@pk{i}", pkValues[i]);
+        }
+
+        var affected = command.ExecuteNonQuery();
+        connection?.Close();
+    }
+
+    public void Delete(object pkValue)
     {
         using var connection = GetOpenConnection();
 
