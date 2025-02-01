@@ -192,7 +192,10 @@ internal class DataViewModel : BindableBase
                             progress.SetProgress(percentage);
 
                             var row = dataTable.Rows[index];
-                            var pkValue = row.Field<string>(Database.PRIMARY_KEY);
+                            var pkValue = row.Field<string?>(Database.PRIMARY_KEY);
+                            if (string.IsNullOrWhiteSpace(pkValue))
+                                continue;
+
 
                             var ignoredColumns = new List<string> { Database.PRIMARY_KEY, Database.TIMESTAMP_ADDED, Database.TIMESTAMP_UPDATED };
                             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headerNames);
@@ -355,7 +358,11 @@ internal class DataViewModel : BindableBase
                             progress.SetProgress(percentage);
 
                             var row = dataTable.Rows[index];
-                            var pkValue = row.Field<string>(Database.PRIMARY_KEY);
+                            var pkValue = row.Field<string?>(Database.PRIMARY_KEY);
+
+                            if (string.IsNullOrWhiteSpace(pkValue))
+                                continue;
+
 
                             var ignoredColumns = new List<string> { Database.PRIMARY_KEY, Database.TIMESTAMP_ADDED, Database.TIMESTAMP_UPDATED };
                             var workingColumns = row.Table.Columns.Cast<DataColumn>().Select(c => c.ColumnName).Intersect(headerNames);
