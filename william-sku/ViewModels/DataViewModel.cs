@@ -36,6 +36,9 @@ internal class DataViewModel : BindableBase
         _dialogService = dialogService;
         _dialogCoordinator = dialogCoordinator;
         _regionManager = regionManager;
+
+
+        
         Task.Run(LoadItems);
     }
 
@@ -399,6 +402,8 @@ internal class DataViewModel : BindableBase
 
         try
         {
+            _database.SyncSchema();
+
             var dt = _database.ListItemsAsDataTable();
 
             await Application.Current.Dispatcher.InvokeAsync(() =>

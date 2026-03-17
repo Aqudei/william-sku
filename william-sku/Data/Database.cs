@@ -33,6 +33,9 @@ public class Database
 
         if (!File.Exists(dbPath))
             CreateTables();
+
+
+        PreRun();
     }
 
 
@@ -61,6 +64,145 @@ public class Database
 
         connection?.Close();
     }
+    public void SyncSchema(bool allowDestructiveChanges = false)
+    {
+        var headers = ListHeaders()
+            .Select(h => h.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        using var connection = GetOpenConnection();
+
+        // System columns (always keep)
+        var systemColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            //PRIMARY_KEY,
+            //TIMESTAMP_ADDED,
+            //TIMESTAMP_UPDATED,
+            "Id"
+        };
+
+        // 1. Get current DB columns
+        var dbColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        using (var cmd = new SqliteCommand("PRAGMA table_info(MCRecords);", connection))
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                dbColumns.Add(reader["name"].ToString());
+            }
+        }
+
+        // 2. ADD missing columns
+        var columnsToAdd = headers
+            .Except(dbColumns)
+            .Except(systemColumns)
+            .ToList();
+
+        foreach (var col in columnsToAdd)
+        {
+            var alter = $"ALTER TABLE MCRecords ADD COLUMN \"{col}\" TEXT;";
+            using var cmd = new SqliteCommand(alter, connection);
+            cmd.ExecuteNonQuery();
+        }
+
+
+        if (!allowDestructiveChanges)
+            return;
+
+        // Refresh dbColumns after adding
+        foreach (var col in columnsToAdd)
+            dbColumns.Add(col);
+
+        // 3. REMOVE extra columns (excluding system)
+        var columnsToRemove = dbColumns
+            .Except(headers)
+            .Except(systemColumns)
+            .ToList();
+
+        if (!columnsToRemove.Any())
+            return; // nothing to rebuild
+
+        // Final columns to keep
+        var finalColumns = dbColumns
+            .Except(columnsToRemove)
+            .ToList();
+
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            // 1. Rename old table
+            new SqliteCommand(
+                "ALTER TABLE MCRecords RENAME TO MCRecords_old;",
+                connection,
+                transaction
+            ).ExecuteNonQuery();
+
+            // 2. Recreate table
+            var columnDefs = new List<string>();
+
+            foreach (var col in finalColumns)
+            {
+                if (col.Equals("Id", StringComparison.OrdinalIgnoreCase))
+                    columnDefs.Add("Id INTEGER PRIMARY KEY AUTOINCREMENT");
+                else
+                    columnDefs.Add($"\"{col}\" TEXT");
+            }
+
+            var createSql = $"CREATE TABLE MCRecords ({string.Join(",", columnDefs)});";
+
+            new SqliteCommand(createSql, connection, transaction)
+                .ExecuteNonQuery();
+
+            // 3. Copy data
+            var columnList = string.Join(",", finalColumns.Select(c => $"\"{c}\""));
+
+            var copySql = $@"
+            INSERT INTO MCRecords ({columnList})
+            SELECT {columnList} FROM MCRecords_old;
+        ";
+
+            new SqliteCommand(copySql, connection, transaction)
+                .ExecuteNonQuery();
+
+            // 4. Drop old table
+            new SqliteCommand("DROP TABLE MCRecords_old;", connection, transaction)
+                .ExecuteNonQuery();
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+    }
+
+    private void PreRun()
+    {
+        using var connection = GetOpenConnection();
+        var cmd = "CREATE UNIQUE INDEX IF NOT EXISTS idx_headers_name ON Headers(Name)";
+        using var createOndexCommand = new SqliteCommand(cmd, connection);
+        createOndexCommand.ExecuteNonQuery();
+
+
+        var commandText = @"
+            INSERT INTO Headers (Name, Display, Range, Required)
+            VALUES (@Name, @Display, @Range, @Required)
+            ON CONFLICT(Name) DO UPDATE SET
+                Display = excluded.Display,
+                Range = excluded.Range,
+                Required = excluded.Required;
+        ";
+
+        using var createRequiredHeadersCommand = new SqliteCommand(commandText, connection);
+        createRequiredHeadersCommand.Parameters.AddWithValue("@Name", "UPDATED");
+        createRequiredHeadersCommand.Parameters.AddWithValue("@Display", "UPDATED");
+        createRequiredHeadersCommand.Parameters.AddWithValue("@Range", true);
+        createRequiredHeadersCommand.Parameters.AddWithValue("@Required", true);
+        createRequiredHeadersCommand.ExecuteNonQuery();
+    }
 
     private void CreateInitialHeadersTable()
     {
@@ -69,7 +211,7 @@ public class Database
         var createTableQuery = @"
                 CREATE TABLE IF NOT EXISTS Headers (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Name TEXT,              
+                    Name TEXT UNIQUE,              
                     Display TEXT,              
                     Required INTEGER NOT NULL CHECK (Required IN (0, 1)),
                     Range INTEGER NOT NULL CHECK (Range IN (0, 1)),
@@ -170,48 +312,98 @@ public class Database
 
     public void UpdateOrCreate(string pkValue, DataRow row, IEnumerable<string> workingColumns)
     {
-        var exist = CheckRecordExist(pkValue);
-        var insertOrUpdateQuery = "";
-        if (exist)
-        {
-            insertOrUpdateQuery = @$" 
-                UPDATE MCRecords SET 
-                    {TIMESTAMP_UPDATED}=@{TIMESTAMP_UPDATED},{string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
-                WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};
-            ";
-        }
-        else
-        {
-            insertOrUpdateQuery = @$" 
-                INSERT INTO MCRecords (
-                    {PRIMARY_KEY},{TIMESTAMP_ADDED},{string.Join(',', workingColumns)}
-                ) VALUES (
-                   @{PRIMARY_KEY},@{TIMESTAMP_ADDED},{string.Join(',', workingColumns.Select(h => "@" + h))}
-                );
-            ";
-        }
-
         using var connection = GetOpenConnection();
 
-        using var command = new SqliteCommand(insertOrUpdateQuery, connection);
-        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
-        if (exist)
-            command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.Date.ToString("yyyy-MM-dd"));
-        else
-            command.Parameters.AddWithValue($"@{TIMESTAMP_ADDED}", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+        // 1. Get actual columns (case-insensitive)
+        var columnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var workingColumn in workingColumns)
-            if (!command.Parameters.Contains($"@{workingColumn}"))
+        using (var pragmaCmd = new SqliteCommand("PRAGMA table_info(MCRecords);", connection))
+        using (var reader = pragmaCmd.ExecuteReader())
+        {
+            while (reader.Read())
             {
-                var value = row[workingColumn];
-                if (value == null)
-                    command.Parameters.AddWithValue($"@{workingColumn}", DBNull.Value);
-                else
-                    command.Parameters.AddWithValue($"@{workingColumn}", value);
+                columnNames.Add(reader["name"].ToString());
             }
+        }
 
-        var affected = command.ExecuteNonQuery();
-        connection?.Close();
+        // System columns (never update dynamically)
+        var systemColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            PRIMARY_KEY,
+            TIMESTAMP_ADDED,
+            TIMESTAMP_UPDATED,
+            "Id"
+        };
+
+        // 2. Filter only valid + non-system columns
+        var validColumns = workingColumns
+            .Where(c => columnNames.Contains(c) && !systemColumns.Contains(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // 3. Check existence USING SAME CONNECTION
+        bool exist;
+        using (var checkCmd = new SqliteCommand(
+            $"SELECT 1 FROM MCRecords WHERE \"{PRIMARY_KEY}\" = @{PRIMARY_KEY} LIMIT 1;",
+            connection))
+        {
+            checkCmd.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
+            exist = checkCmd.ExecuteScalar() != null;
+        }
+
+        string query;
+
+        if (exist)
+        {
+            var setParts = new List<string>
+        {
+            $"\"{TIMESTAMP_UPDATED}\" = @{TIMESTAMP_UPDATED}"
+        };
+
+            setParts.AddRange(validColumns.Select(c => $"\"{c}\" = @{c}"));
+
+            query = $@"
+                UPDATE MCRecords SET 
+                    {string.Join(",", setParts)}
+                WHERE ""{PRIMARY_KEY}"" = @{PRIMARY_KEY};
+            ";
+        }
+        else
+        {
+            var insertColumns = new List<string> { PRIMARY_KEY, TIMESTAMP_ADDED, TIMESTAMP_UPDATED };
+            insertColumns.AddRange(validColumns);
+
+            var columnSql = string.Join(",", insertColumns.Select(c => $"\"{c}\""));
+            var valueSql = string.Join(",", insertColumns.Select(c => $"@{c}"));
+
+            query = $@"
+            INSERT INTO MCRecords ({columnSql})
+            VALUES ({valueSql});
+        ";
+        }
+
+        using var command = new SqliteCommand(query, connection);
+
+        // PK
+        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
+
+        if (exist)
+            command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.ToString("yyyy-MM-dd"));
+        else
+            command.Parameters.AddWithValue($"@{TIMESTAMP_ADDED}", DateTime.Now.ToString("yyyy-MM-dd"));
+
+        // 4. Safe parameter binding
+        foreach (var col in validColumns)
+        {
+            object value = DBNull.Value;
+
+            if (row.Table.Columns.Contains(col) && row[col] != null)
+                value = row[col];
+
+            command.Parameters.AddWithValue($"@{col}", value ?? DBNull.Value);
+        }
+
+        command.ExecuteNonQuery();
     }
 
     public IEnumerable<Header> ListHeaders()
@@ -246,14 +438,41 @@ public class Database
 
         using var connection = GetOpenConnection();
 
-        var commandText = $"SELECT {string.Join(',', headers.Select(h => h.Name))} FROM MCRecords";
+        // 1. Get actual columns from MCRecords
+        var columnNames = new HashSet<string>();
+
+        using (var pragmaCmd = new SqliteCommand("PRAGMA table_info(MCRecords);", connection))
+        using (var reader = pragmaCmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                columnNames.Add(reader["name"].ToString());
+            }
+        }
+
+        // 2. Filter headers to only valid columns
+        var validHeaders = headers
+            .Where(h => columnNames.Contains(h.Name))
+            .ToArray();
+
+        // Optional: handle case where nothing is valid
+        if (!validHeaders.Any())
+            throw new Exception("No valid columns found in MCRecords.");
+
+
+        var missing = headers
+            .Where(h => !columnNames.Contains(h.Name))
+            .Select(h => h.Name)
+            .ToList();
+
+
+        var commandText = $"SELECT {string.Join(',', validHeaders.Select(h => h.Name))} FROM MCRecords";
+
         using var command = new SqliteCommand(commandText, connection);
-        var reader = command.ExecuteReader();
+        using var dataReader = command.ExecuteReader();
 
         var dataTable = new DataTable();
-        dataTable.Load(reader);
-
-        connection?.Close();
+        dataTable.Load(dataReader);
 
         return dataTable;
     }
@@ -411,33 +630,85 @@ public class Database
 
     public void UpdateOnly(string? pkValue, DataRow row, IEnumerable<string> workingColumns)
     {
-        var exist = CheckRecordExist(pkValue);
-        var updateQuery = "";
+        if (string.IsNullOrWhiteSpace(pkValue))
+            return;
+
+        using var connection = GetOpenConnection();
+
+        // 1. Get actual columns from MCRecords
+        var columnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var pragmaCmd = new SqliteCommand("PRAGMA table_info(MCRecords);", connection))
+        using (var reader = pragmaCmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                columnNames.Add(reader["name"].ToString());
+            }
+        }
+
+        // 2. System columns we should not update dynamically
+        var systemColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        PRIMARY_KEY,
+        TIMESTAMP_ADDED,
+        TIMESTAMP_UPDATED,
+        "Id"
+    };
+
+        // 3. Filter only valid + non-system columns
+        var validColumns = workingColumns
+            .Where(c => columnNames.Contains(c) && !systemColumns.Contains(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!validColumns.Any())
+            return; // nothing to update
+
+        // 4. Check existence using the same connection
+        bool exist;
+        using (var checkCmd = new SqliteCommand(
+            $"SELECT 1 FROM MCRecords WHERE \"{PRIMARY_KEY}\" = @{PRIMARY_KEY} LIMIT 1;",
+            connection))
+        {
+            checkCmd.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
+            exist = checkCmd.ExecuteScalar() != null;
+        }
+
         if (!exist)
             return;
 
-        updateQuery = $"""
-                                UPDATE MCRecords SET 
-                                    {TIMESTAMP_UPDATED}=@{TIMESTAMP_UPDATED},{string.Join(",", workingColumns.Select(h => $"{h} = @{h}"))}
-                                WHERE {PRIMARY_KEY}=@{PRIMARY_KEY};         
-                           """;
+        // 5. Build safe update query
+        var setParts = new List<string>
+        {
+            $"\"{TIMESTAMP_UPDATED}\" = @{TIMESTAMP_UPDATED}"
+        };
+
+        setParts.AddRange(validColumns.Select(c => $"\"{c}\" = @{c}"));
+
+        var updateQuery = $@"
+            UPDATE MCRecords SET 
+                {string.Join(",", setParts)}
+            WHERE ""{PRIMARY_KEY}"" = @{PRIMARY_KEY};
+        ";
 
         Debug.WriteLine(updateQuery);
 
-        using var connection = GetOpenConnection();
         using var command = new SqliteCommand(updateQuery, connection);
 
+        // 6. Add parameters
         command.Parameters.AddWithValue($"@{PRIMARY_KEY}", pkValue);
-        command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.Date.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.ToString("yyyy-MM-dd"));
 
-        foreach (var workingColumn in workingColumns)
-            if (!command.Parameters.Contains($"@{workingColumn}"))
-            {
-                var value = row.Field<object>(workingColumn);
-                command.Parameters.AddWithValue($"@{workingColumn}", value ?? DBNull.Value);
-            }
+        foreach (var col in validColumns)
+        {
+            object value = DBNull.Value;
 
-        var affected = command.ExecuteNonQuery();
-        connection?.Close();
+            if (row.Table.Columns.Contains(col) && row[col] != null)
+                value = row[col];
+
+            command.Parameters.AddWithValue($"@{col}", value ?? DBNull.Value);
+        }
+
+        command.ExecuteNonQuery();
     }
 }
