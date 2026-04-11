@@ -374,7 +374,10 @@ public class Database
         if (exist)
             command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.ToString("yyyy-MM-dd"));
         else
+        {
+            command.Parameters.AddWithValue($"@{TIMESTAMP_UPDATED}", DateTime.Now.ToString("yyyy-MM-dd"));
             command.Parameters.AddWithValue($"@{TIMESTAMP_ADDED}", DateTime.Now.ToString("yyyy-MM-dd"));
+        }
 
         // 4. Safe parameter binding
         foreach (var col in validColumns)
