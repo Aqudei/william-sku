@@ -376,7 +376,7 @@ internal class DataViewModel : BindableBase
                             }
                             catch (Exception ex)
                             {
-                                Logger.Error($"Unable to import <{pkValue}>: {ex.Message}");
+                                Logger.Error(ex, $"Unable to import <{pkValue}>: {ex.Message}");
                             }
                         }
 

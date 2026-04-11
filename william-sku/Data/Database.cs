@@ -264,22 +264,6 @@ public class Database
         connection?.Close();
     }
 
-    public bool CheckRecordExist(string dotNumber)
-    {
-        var findQuery = $"SELECT * FROM MCRecords WHERE {PRIMARY_KEY}=@{PRIMARY_KEY}";
-
-        using var connection = GetOpenConnection();
-
-        using var command = new SqliteCommand(findQuery, connection);
-        command.Parameters.AddWithValue($"@{PRIMARY_KEY}", dotNumber);
-        using var reader = command.ExecuteReader();
-
-        var exist = reader.HasRows;
-
-        connection?.Close();
-        return exist;
-    }
-
     public Header? GetHeader(int headerId)
     {
         var findQuery = "SELECT * FROM Headers WHERE Id=@Id";
@@ -648,12 +632,12 @@ public class Database
 
         // 2. System columns we should not update dynamically
         var systemColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        PRIMARY_KEY,
-        TIMESTAMP_ADDED,
-        TIMESTAMP_UPDATED,
-        "Id"
-    };
+        {
+            PRIMARY_KEY,
+            TIMESTAMP_ADDED,
+            TIMESTAMP_UPDATED,
+            "Id"
+        };
 
         // 3. Filter only valid + non-system columns
         var validColumns = workingColumns
